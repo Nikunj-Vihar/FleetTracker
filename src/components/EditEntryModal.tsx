@@ -130,7 +130,7 @@ export default function EditEntryModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="label-text">Date</label>
               <input type="date" className="input-field" value={date} onChange={(e) => setDate(e.target.value)} />

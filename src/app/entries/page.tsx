@@ -105,88 +105,105 @@ export default function EntriesPage() {
         </label>
       </div>
 
-      <div className="glass-panel overflow-x-auto">
-        <table className="w-full min-w-[900px] text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
-              <th className="px-3 py-2.5">Date</th>
-              <th className="px-3 py-2.5">Vehicle</th>
-              <th className="px-3 py-2.5">Driver</th>
-              <th className="px-3 py-2.5">Place</th>
-              <th className="px-3 py-2.5 text-right">Onward</th>
-              <th className="px-3 py-2.5 text-right">Return</th>
-              <th className="px-3 py-2.5 text-right">KMS</th>
-              <th className="px-3 py-2.5 text-right">Diesel (L)</th>
-              <th className="px-3 py-2.5 text-right">Avg</th>
-              <th className="px-3 py-2.5">Flags</th>
-              <th className="px-3 py-2.5"></th>
-            </tr>
-          </thead>
-          <tbody>
+      {filtered.length === 0 ? (
+        <div className="glass-panel px-3 py-10 text-center text-sm text-slate-400">
+          <AlertTriangle size={20} className="mx-auto mb-2 opacity-40" />
+          No entries match your filters.
+        </div>
+      ) : (
+        <>
+          {/* Card list — small screens, where a wide table would need
+              sideways scrolling to see KMS/Average/Flags/actions at all. */}
+          <div className="space-y-2 sm:hidden">
             {filtered.map((entry) => (
-              <tr key={entry.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60 dark:border-slate-800 dark:hover:bg-slate-800/40">
-                <td className="whitespace-nowrap px-3 py-2.5 text-slate-700 dark:text-slate-200">{formatDate(entry.date)}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 font-medium text-slate-800 dark:text-slate-100">
-                  {vehicleMap.get(entry.vehicle_id)?.vehicle_no ?? "—"}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-slate-600 dark:text-slate-300">
-                  {driverMap.get(entry.driver_id)?.name ?? "—"}
-                </td>
-                <td className="max-w-[160px] truncate px-3 py-2.5 text-slate-500 dark:text-slate-400">{entry.place ?? "—"}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">{entry.onward_reading}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">{entry.return_reading}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums font-medium text-slate-800 dark:text-slate-100">{entry.total_kms}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">{entry.diesel_consumed}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums font-medium text-slate-800 dark:text-slate-100">{entry.average_kml}</td>
-                <td className="px-3 py-2.5">
-                  <div className="flex flex-wrap gap-1">
-                    {entry.is_anomalous && entry.anomaly_direction === "WORSE" && (
-                      <span className="badge badge-worse"><ShieldAlert size={11} /> Worse</span>
-                    )}
-                    {entry.is_anomalous && entry.anomaly_direction === "BETTER" && (
-                      <span className="badge badge-better"><TrendingUp size={11} /> Better</span>
-                    )}
-                    {entry.is_continuity_broken && (
-                      <span className="badge badge-warning"><GitBranch size={11} /> Gap</span>
-                    )}
-                    {!entry.is_anomalous && !entry.is_continuity_broken && (
-                      <span className="text-xs text-slate-300 dark:text-slate-600">—</span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-3 py-2.5">
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setEditEntry(entry)}
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600 dark:hover:bg-slate-700"
-                      title="Correct entry"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAuditEntry(entry)}
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600 dark:hover:bg-slate-700"
-                      title="View audit trail"
-                    >
-                      <History size={14} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
+              <EntryCard
+                key={entry.id}
+                entry={entry}
+                vehicleNo={vehicleMap.get(entry.vehicle_id)?.vehicle_no ?? "—"}
+                driverName={driverMap.get(entry.driver_id)?.name ?? "—"}
+                onEdit={() => setEditEntry(entry)}
+                onAudit={() => setAuditEntry(entry)}
+              />
             ))}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={11} className="px-3 py-10 text-center text-sm text-slate-400">
-                  <AlertTriangle size={20} className="mx-auto mb-2 opacity-40" />
-                  No entries match your filters.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+          </div>
+
+          {/* Full table — sm and up */}
+          <div className="glass-panel hidden overflow-x-auto sm:block">
+            <table className="w-full min-w-[900px] text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  <th className="px-3 py-2.5">Date</th>
+                  <th className="px-3 py-2.5">Vehicle</th>
+                  <th className="px-3 py-2.5">Driver</th>
+                  <th className="px-3 py-2.5">Place</th>
+                  <th className="px-3 py-2.5 text-right">Onward</th>
+                  <th className="px-3 py-2.5 text-right">Return</th>
+                  <th className="px-3 py-2.5 text-right">KMS</th>
+                  <th className="px-3 py-2.5 text-right">Diesel (L)</th>
+                  <th className="px-3 py-2.5 text-right">Avg</th>
+                  <th className="px-3 py-2.5">Flags</th>
+                  <th className="px-3 py-2.5"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((entry) => (
+                  <tr key={entry.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60 dark:border-slate-800 dark:hover:bg-slate-800/40">
+                    <td className="whitespace-nowrap px-3 py-2.5 text-slate-700 dark:text-slate-200">{formatDate(entry.date)}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 font-medium text-slate-800 dark:text-slate-100">
+                      {vehicleMap.get(entry.vehicle_id)?.vehicle_no ?? "—"}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-slate-600 dark:text-slate-300">
+                      {driverMap.get(entry.driver_id)?.name ?? "—"}
+                    </td>
+                    <td className="max-w-[160px] truncate px-3 py-2.5 text-slate-500 dark:text-slate-400">{entry.place ?? "—"}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">{entry.onward_reading}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">{entry.return_reading}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums font-medium text-slate-800 dark:text-slate-100">{entry.total_kms}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">{entry.diesel_consumed}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums font-medium text-slate-800 dark:text-slate-100">{entry.average_kml}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex flex-wrap gap-1">
+                        {entry.is_anomalous && entry.anomaly_direction === "WORSE" && (
+                          <span className="badge badge-worse"><ShieldAlert size={11} /> Worse</span>
+                        )}
+                        {entry.is_anomalous && entry.anomaly_direction === "BETTER" && (
+                          <span className="badge badge-better"><TrendingUp size={11} /> Better</span>
+                        )}
+                        {entry.is_continuity_broken && (
+                          <span className="badge badge-warning"><GitBranch size={11} /> Gap</span>
+                        )}
+                        {!entry.is_anomalous && !entry.is_continuity_broken && (
+                          <span className="text-xs text-slate-300 dark:text-slate-600">—</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditEntry(entry)}
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600 dark:hover:bg-slate-700"
+                          title="Correct entry"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAuditEntry(entry)}
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600 dark:hover:bg-slate-700"
+                          title="View audit trail"
+                        >
+                          <History size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       {auditEntry && <AuditTrailModal entry={auditEntry} onClose={() => setAuditEntry(null)} />}
       {editEntry && (
@@ -201,6 +218,86 @@ export default function EntriesPage() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+function EntryCard({
+  entry,
+  vehicleNo,
+  driverName,
+  onEdit,
+  onAudit,
+}: {
+  entry: FuelEntry;
+  vehicleNo: string;
+  driverName: string;
+  onEdit: () => void;
+  onAudit: () => void;
+}) {
+  return (
+    <div className="glass-panel p-3.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-semibold text-slate-900 dark:text-white">{vehicleNo}</p>
+          <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+            {formatDate(entry.date)} · {driverName}
+            {entry.place ? ` · ${entry.place}` : ""}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap justify-end gap-1">
+          {entry.is_anomalous && entry.anomaly_direction === "WORSE" && (
+            <span className="badge badge-worse"><ShieldAlert size={11} /> Worse</span>
+          )}
+          {entry.is_anomalous && entry.anomaly_direction === "BETTER" && (
+            <span className="badge badge-better"><TrendingUp size={11} /> Better</span>
+          )}
+          {entry.is_continuity_broken && (
+            <span className="badge badge-warning"><GitBranch size={11} /> Gap</span>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-4 gap-1 rounded-lg bg-slate-50 py-2 text-center dark:bg-slate-800/50">
+        <div>
+          <p className="text-[10px] uppercase tracking-wide text-slate-400">Onward</p>
+          <p className="text-sm tabular-nums text-slate-700 dark:text-slate-200">{entry.onward_reading}</p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wide text-slate-400">Return</p>
+          <p className="text-sm tabular-nums text-slate-700 dark:text-slate-200">{entry.return_reading}</p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wide text-slate-400">KMS</p>
+          <p className="text-sm font-semibold tabular-nums text-slate-900 dark:text-white">{entry.total_kms}</p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wide text-slate-400">Avg</p>
+          <p className="text-sm font-semibold tabular-nums text-slate-900 dark:text-white">{entry.average_kml}</p>
+        </div>
+      </div>
+
+      <div className="mt-2 flex items-center justify-between">
+        <p className="text-xs text-slate-400">{entry.diesel_consumed} L diesel</p>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600 dark:hover:bg-slate-700"
+            title="Correct entry"
+          >
+            <Pencil size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={onAudit}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600 dark:hover:bg-slate-700"
+            title="View audit trail"
+          >
+            <History size={14} />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

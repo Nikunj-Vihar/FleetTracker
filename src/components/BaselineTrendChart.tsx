@@ -102,24 +102,24 @@ export default function BaselineTrendChart({ points, title }: { points: TrendPoi
     <div className="glass-panel p-4 sm:p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">{title}</h3>
-        <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: COLOR_LINE }} /> Average km/l
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+          <span className="flex items-center gap-1 whitespace-nowrap">
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: COLOR_LINE }} /> Average km/l
           </span>
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-3 rounded-sm" style={{ backgroundColor: COLOR_BAND }} /> Expected range
+          <span className="flex items-center gap-1 whitespace-nowrap">
+            <span className="h-2 w-3 shrink-0 rounded-sm" style={{ backgroundColor: COLOR_BAND }} /> Expected range
           </span>
-          <span className="flex items-center gap-1" style={{ color: COLOR_WORSE }}>
+          <span className="flex items-center gap-1 whitespace-nowrap" style={{ color: COLOR_WORSE }}>
             <TrendingDown size={12} /> Worse ({worseCount})
           </span>
-          <span className="flex items-center gap-1" style={{ color: COLOR_BETTER }}>
+          <span className="flex items-center gap-1 whitespace-nowrap" style={{ color: COLOR_BETTER }}>
             <TrendingUp size={12} /> Better ({betterCount})
           </span>
         </div>
       </div>
 
       <ResponsiveContainer width="100%" height={280}>
-        <ComposedChart data={data} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+        <ComposedChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
           <CartesianGrid stroke={COLOR_GRID} strokeDasharray="0" vertical={false} />
           <XAxis
             dataKey="date"
