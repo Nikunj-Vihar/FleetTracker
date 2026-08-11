@@ -19,7 +19,7 @@ import { buildSampleEntries, sampleDrivers, sampleVehicles } from "@/lib/mockDat
 import { clearLocalData, correctEntry, createEntry, createVehicle, createDriver, listAuditLogs, listEntries, ValidationError } from "@/lib/store";
 import type { Driver, FuelEntryInput, Vehicle } from "@/lib/types";
 
-const VEHICLE_2392: Vehicle = sampleVehicles[0]; // expected_avg 7.8, tank_capacity 100
+const VEHICLE_A: Vehicle = sampleVehicles[0]; // expected_avg 7.8, tank_capacity 100
 
 // ---------------------------------------------------------------------
 // §10.2 Computed-field test
@@ -131,8 +131,8 @@ describe("validatePhysicalSanity — hard rejects", () => {
   it("evaluateEntry marks a negative-KMS entry as invalid (blocks the save)", () => {
     const driver: Driver = sampleDrivers[0];
     const evaluation = evaluateEntry({
-      input: { date: "2026-05-01", vehicle_id: VEHICLE_2392.id, driver_id: driver.id, onward_reading: 1000, return_reading: 900, diesel_consumed: 30 },
-      vehicle: VEHICLE_2392,
+      input: { date: "2026-05-01", vehicle_id: VEHICLE_A.id, driver_id: driver.id, onward_reading: 1000, return_reading: 900, diesel_consumed: 30 },
+      vehicle: VEHICLE_A,
       driver,
       previousReturnReading: 1000,
       priorVehicleEntries: [],
@@ -144,8 +144,8 @@ describe("validatePhysicalSanity — hard rejects", () => {
   it("an odometer-rollover override bypasses the hard reject but still raises a distinct manual-review flag (not silently accepted)", () => {
     const driver: Driver = sampleDrivers[0];
     const evaluation = evaluateEntry({
-      input: { date: "2026-05-01", vehicle_id: VEHICLE_2392.id, driver_id: driver.id, onward_reading: 999900, return_reading: 100, diesel_consumed: 25 },
-      vehicle: VEHICLE_2392,
+      input: { date: "2026-05-01", vehicle_id: VEHICLE_A.id, driver_id: driver.id, onward_reading: 999900, return_reading: 100, diesel_consumed: 25 },
+      vehicle: VEHICLE_A,
       driver,
       previousReturnReading: 999900,
       priorVehicleEntries: [],
@@ -157,19 +157,19 @@ describe("validatePhysicalSanity — hard rejects", () => {
 });
 
 // ---------------------------------------------------------------------
-// §10.3 Anomaly threshold test — against the client's own sample log data
+// §10.3 Anomaly threshold test — against realistic sample log data
 // ---------------------------------------------------------------------
 
-describe("detectAnomaly — 8% deviation threshold against the client's real logged data", () => {
-  it("fires on vehicle 5809's 25 Apr entry (5.51 km/l) against a 7.8 km/l baseline — the exact entry circled in red on the client's own paper log (~-29%)", () => {
-    const result = detectAnomaly(5.51, 7.8, DEFAULT_ANOMALY_THRESHOLD_PCT);
+describe("detectAnomaly — 8% deviation threshold against realistic logged data", () => {
+  it("fires on vehicle 6039's 25 Apr entry (5.69 km/l) against a 7.8 km/l baseline (~-27%)", () => {
+    const result = detectAnomaly(5.69, 7.8, DEFAULT_ANOMALY_THRESHOLD_PCT);
     expect(result.isAnomalous).toBe(true);
     expect(result.direction).toBe("WORSE");
-    expect(result.deviationPct).toBeCloseTo(-29.36, 1);
+    expect(result.deviationPct).toBeCloseTo(-27.05, 1);
   });
 
-  it("fires on 5809's 29 Apr entry (5.66 km/l) against the same baseline", () => {
-    const result = detectAnomaly(5.66, 7.8, DEFAULT_ANOMALY_THRESHOLD_PCT);
+  it("fires on 6039's 29 Apr entry (5.9 km/l) against the same baseline", () => {
+    const result = detectAnomaly(5.9, 7.8, DEFAULT_ANOMALY_THRESHOLD_PCT);
     expect(result.isAnomalous).toBe(true);
     expect(result.direction).toBe("WORSE");
   });
@@ -188,31 +188,31 @@ describe("detectAnomaly — 8% deviation threshold against the client's real log
     expect(result.direction).toBe("BETTER");
   });
 
-  it("the real sample log flags all three of vehicle 5809's trips WORSE, matching the client's own red-ink flag", () => {
+  it("the sample log flags all three of vehicle 6039's trips WORSE", () => {
     const entries = buildSampleEntries(sampleVehicles, sampleDrivers)
-      .filter((e) => e.vehicle_id === "veh-5809")
+      .filter((e) => e.vehicle_id === "veh-3")
       .sort((a, b) => a.date.localeCompare(b.date));
 
     expect(entries.map((e) => e.date)).toEqual(["2026-04-25", "2026-04-29", "2026-05-02"]);
-    expect(entries[0].average_kml).toBe(5.51);
-    expect(entries[1].average_kml).toBe(5.66);
+    expect(entries[0].average_kml).toBe(5.69);
+    expect(entries[1].average_kml).toBe(5.9);
     for (const entry of entries) {
       expect(entry.is_anomalous).toBe(true);
       expect(entry.anomaly_direction).toBe("WORSE");
     }
   });
 
-  it("computes 5809's 2 May trip at 6.2 km/l, correcting the client's own hand-written 5.64 — exactly the arithmetic-slip class of bug this tool exists to catch", () => {
-    const entries = buildSampleEntries(sampleVehicles, sampleDrivers).filter((e) => e.vehicle_id === "veh-5809");
+  it("computes 6039's 2 May trip purely from raw readings (283 km / 46 L = 6.15 km/l) — average is always derived, never hand-entered", () => {
+    const entries = buildSampleEntries(sampleVehicles, sampleDrivers).filter((e) => e.vehicle_id === "veh-3");
     const may2 = entries.find((e) => e.date === "2026-05-02");
-    expect(may2?.total_kms).toBe(254);
-    expect(may2?.diesel_consumed).toBe(41);
-    expect(may2?.average_kml).toBe(6.2); // 254 / 41, not the paper's hand-calculated 5.64
+    expect(may2?.total_kms).toBe(283);
+    expect(may2?.diesel_consumed).toBe(46);
+    expect(may2?.average_kml).toBe(6.15);
   });
 
-  it("does not flag vehicles 2392 or 7326, whose real entries sit within the expected band", () => {
+  it("does not flag vehicles 4417 or 8256, whose entries sit within the expected band", () => {
     const entries = buildSampleEntries(sampleVehicles, sampleDrivers).filter(
-      (e) => e.vehicle_id === "veh-2392" || e.vehicle_id === "veh-7326"
+      (e) => e.vehicle_id === "veh-1" || e.vehicle_id === "veh-2"
     );
     expect(entries.length).toBeGreaterThan(0);
     for (const entry of entries) {

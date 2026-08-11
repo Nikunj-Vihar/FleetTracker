@@ -565,7 +565,7 @@ export async function updateSettings(changes: Partial<Settings>): Promise<Settin
   if (isSupabaseConfigured) {
     const client = getSupabaseClient()!;
     const rows = Object.entries(next).map(([key, value]) => ({ key, value }));
-    const { error } = await client.from("settings").upsert(rows, { onConflict: "key" });
+    const { error } = await client.from("settings").upsert(rows, { onConflict: "org_id,key" });
     if (error) throw new Error(error.message);
     return next;
   }

@@ -221,7 +221,7 @@ export default function DailyLogForm({
               className="input-field"
               value={place}
               onChange={(e) => setPlace(e.target.value)}
-              placeholder="e.g. Tirupati -> Rajahmundry"
+              placeholder="e.g. Depot A -> Depot B"
             />
           </div>
 

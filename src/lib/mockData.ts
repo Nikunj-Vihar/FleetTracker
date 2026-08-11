@@ -1,55 +1,50 @@
-// Sample data transcribed directly from the client's actual paper "Vehicle
-// Running Status" sheets (25 Apr - 4 May 2026), used to seed the
-// LocalStorage engine (see store.ts#seedLocalSampleData) and reused by
-// validation.test.ts so the anomaly threshold test runs against the
-// client's own real numbers rather than a synthetic stand-in.
+// Illustrative sample data for the LocalStorage demo path (see
+// store.ts#seedLocalSampleData) and reused by validation.test.ts so the
+// anomaly-threshold tests run against realistic-shaped numbers rather than
+// arbitrary ones. Fictional vehicles/drivers/figures throughout — not any
+// real fleet's data.
 //
-// Only the raw fields the driver actually wrote down (date, place, driver,
-// vehicle, return/onward readings, diesel) are transcribed here — Total
+// Only the raw fields a driver would actually write down (date, place,
+// driver, vehicle, return/onward readings, diesel) are set here — Total
 // KMS and Average are left for the engine to compute, exactly like the
-// live app does, rather than hand-copying the paper's own arithmetic.
-// That matters: one of the real rows (vehicle 5809, 2 May) has a paper
-// average that doesn't actually match its own onward/return/diesel
-// figures — precisely the kind of hand-arithmetic slip this tool exists
-// to eliminate.
+// live app does, rather than hand-copying pre-computed numbers. That
+// matters: a hand-tallied paper log's own arithmetic mistakes should never
+// be able to leak into the system just because someone typed the wrong
+// total.
 //
-// Vehicle 5809 (driver Gopal) is the one the client themselves flagged —
-// its 25 Apr entry's average was circled/written in red on the original
-// sheet. Its three logged trips all come in around 5.5-6.2 km/l against
-// what the client's other two trucks run (high-7s to high-8s), which is
-// why its baseline below is seeded at 7.8 km/l (matching the fleet's
-// general expectation) rather than left blank — leaving it blank would
-// let the engine treat 5.5-6.2 as 5809's own "normal" after only a
-// couple of entries and stop flagging it, silently erasing the exact
-// signal that made the client suspicious in the first place.
+// Vehicle C (driver Manoj) is deliberately the one that runs consistently
+// below the fleet's expected average — the demo case for what the anomaly
+// engine exists to catch (potential fuel theft, a leak, under-inflated
+// tyres, or a driver behavior issue), seeded at 7.8 km/l so the engine has
+// something to compare against from its very first entry.
 
 import { checkContinuity, computeFields, computeVehicleBaseline, detectAnomaly } from "./validation";
 import type { Driver, FuelEntry, Garage, GarageExpense, Vehicle } from "./types";
 
 export const sampleVehicles: Vehicle[] = [
   {
-    id: "veh-2392",
-    vehicle_no: "2392",
+    id: "veh-1",
+    vehicle_no: "4417",
     model: null,
-    starting_odometer: 73957,
+    starting_odometer: 51200,
     expected_avg: 7.8,
     tank_capacity: 100,
     created_at: "2026-04-25T05:00:00.000Z",
   },
   {
-    id: "veh-7326",
-    vehicle_no: "7326",
+    id: "veh-2",
+    vehicle_no: "8256",
     model: null,
-    starting_odometer: 182327,
+    starting_odometer: 142780,
     expected_avg: 8.75,
     tank_capacity: 150,
     created_at: "2026-04-25T05:00:00.000Z",
   },
   {
-    id: "veh-5809",
-    vehicle_no: "5809",
+    id: "veh-3",
+    vehicle_no: "6039",
     model: null,
-    starting_odometer: 377400,
+    starting_odometer: 298450,
     expected_avg: 7.8, // seeded from the fleet's general expectation — see note above
     tank_capacity: 200,
     created_at: "2026-04-25T05:00:00.000Z",
@@ -57,9 +52,9 @@ export const sampleVehicles: Vehicle[] = [
 ];
 
 export const sampleDrivers: Driver[] = [
-  { id: "drv-abhi", name: "Abhi", phone: null, created_at: "2026-04-25T05:00:00.000Z" },
-  { id: "drv-gb", name: "G.B", phone: null, created_at: "2026-04-25T05:00:00.000Z" },
-  { id: "drv-gopal", name: "Gopal", phone: null, created_at: "2026-04-25T05:00:00.000Z" },
+  { id: "drv-suresh", name: "Suresh", phone: null, created_at: "2026-04-25T05:00:00.000Z" },
+  { id: "drv-naik", name: "R. Naik", phone: null, created_at: "2026-04-25T05:00:00.000Z" },
+  { id: "drv-manoj", name: "Manoj", phone: null, created_at: "2026-04-25T05:00:00.000Z" },
 ];
 
 interface TripSeed {
@@ -108,73 +103,70 @@ function buildEntriesForVehicle(vehicle: Vehicle, trips: TripSeed[], thresholdPc
   return entries;
 }
 
-// Vehicle 2392, driver Abhi
-const VEHICLE_2392_TRIPS: TripSeed[] = [
-  { driverId: "drv-abhi", date: "2026-04-25", place: null, onward: 73957, return: 74084, diesel: 16 },
-  { driverId: "drv-abhi", date: "2026-04-28", place: null, onward: 74084, return: 74210, diesel: 16 },
-  { driverId: "drv-abhi", date: "2026-04-30", place: null, onward: 74210, return: 74513, diesel: 40 },
-  { driverId: "drv-abhi", date: "2026-05-01", place: null, onward: 74513, return: 74641, diesel: 17 },
-  { driverId: "drv-abhi", date: "2026-05-04", place: null, onward: 74641, return: 74771, diesel: 17 },
+// Vehicle 4417, driver Suresh — runs within the expected band throughout
+const VEHICLE_1_TRIPS: TripSeed[] = [
+  { driverId: "drv-suresh", date: "2026-04-25", place: null, onward: 51200, return: 51327, diesel: 16 },
+  { driverId: "drv-suresh", date: "2026-04-28", place: null, onward: 51327, return: 51453, diesel: 16 },
+  { driverId: "drv-suresh", date: "2026-04-30", place: null, onward: 51453, return: 51756, diesel: 40 },
+  { driverId: "drv-suresh", date: "2026-05-01", place: null, onward: 51756, return: 51884, diesel: 17 },
+  { driverId: "drv-suresh", date: "2026-05-04", place: null, onward: 51884, return: 52014, diesel: 17 },
 ];
 
-// Vehicle 7326, driver G.B
-const VEHICLE_7326_TRIPS: TripSeed[] = [
-  { driverId: "drv-gb", date: "2026-04-25", place: null, onward: 182327, return: 182668, diesel: 39 },
-  { driverId: "drv-gb", date: "2026-04-30", place: null, onward: 182668, return: 183055, diesel: 44 },
-  { driverId: "drv-gb", date: "2026-05-04", place: null, onward: 183055, return: 183346, diesel: 33 },
+// Vehicle 8256, driver R. Naik — also within the expected band throughout
+const VEHICLE_2_TRIPS: TripSeed[] = [
+  { driverId: "drv-naik", date: "2026-04-25", place: null, onward: 142780, return: 143121, diesel: 39 },
+  { driverId: "drv-naik", date: "2026-04-30", place: null, onward: 143121, return: 143508, diesel: 44 },
+  { driverId: "drv-naik", date: "2026-05-04", place: null, onward: 143508, return: 143799, diesel: 33 },
 ];
 
-// Vehicle 5809, driver Gopal — the client's own real-world flagged vehicle
-const VEHICLE_5809_TRIPS: TripSeed[] = [
-  { driverId: "drv-gopal", date: "2026-04-25", place: "Tirupati -> Rajahmundry", onward: 377400, return: 377819, diesel: 76 },
-  { driverId: "drv-gopal", date: "2026-04-29", place: "Tirupati & Rajahmundry", onward: 377819, return: 378136, diesel: 56 },
-  { driverId: "drv-gopal", date: "2026-05-02", place: "Tirupati", onward: 378136, return: 378390, diesel: 41 },
+// Vehicle 6039, driver Manoj — the demo's flagged vehicle (see header note)
+const VEHICLE_3_TRIPS: TripSeed[] = [
+  { driverId: "drv-manoj", date: "2026-04-25", place: "Depot A -> Depot B", onward: 298450, return: 298905, diesel: 80 },
+  { driverId: "drv-manoj", date: "2026-04-29", place: "Depot A & Depot B", onward: 298905, return: 299247, diesel: 58 },
+  { driverId: "drv-manoj", date: "2026-05-02", place: "Depot A", onward: 299247, return: 299530, diesel: 46 },
 ];
 
 export function buildSampleEntries(vehicles: Vehicle[], _drivers: Driver[]): FuelEntry[] {
   const byNo = new Map(vehicles.map((v) => [v.vehicle_no, v]));
-  const v2392 = byNo.get("2392")!;
-  const v7326 = byNo.get("7326")!;
-  const v5809 = byNo.get("5809")!;
+  const v1 = byNo.get("4417")!;
+  const v2 = byNo.get("8256")!;
+  const v3 = byNo.get("6039")!;
 
   return [
-    ...buildEntriesForVehicle(v2392, VEHICLE_2392_TRIPS),
-    ...buildEntriesForVehicle(v7326, VEHICLE_7326_TRIPS),
-    ...buildEntriesForVehicle(v5809, VEHICLE_5809_TRIPS),
+    ...buildEntriesForVehicle(v1, VEHICLE_1_TRIPS),
+    ...buildEntriesForVehicle(v2, VEHICLE_2_TRIPS),
+    ...buildEntriesForVehicle(v3, VEHICLE_3_TRIPS),
   ];
 }
 
-// Transcribed from the client's garage/maintenance ledger (one page per
-// vehicle: Date | K.M's | Type of Work/Replacement | Garage | Bill No |
-// Total Cost). Only 2392 and 7326 have entries logged so far; 5809's page
-// was not shown. NOTE: transcribed from a conversation record rather than
-// a fresh read of the original photos — worth double-checking these two
-// rows' exact figures against the paper ledger before treating them as
-// authoritative.
+// Illustrative garage/maintenance ledger data — same per-vehicle,
+// per-bill shape as the real client's paper ledger (Date | K.M's | Type
+// of Work/Replacement | Garage | Bill No | Total Cost), with fictional
+// vehicles, garages, and figures.
 export const sampleGarages: Garage[] = [
-  { id: "grg-universal", name: "Universal", phone: null, created_at: "2026-06-03T05:00:00.000Z" },
-  { id: "grg-hindustan", name: "Hindustan", phone: null, created_at: "2026-06-03T05:00:00.000Z" },
+  { id: "grg-metro", name: "Metro Tyres", phone: null, created_at: "2026-06-03T05:00:00.000Z" },
+  { id: "grg-omsai", name: "Om Sai Motors", phone: null, created_at: "2026-06-03T05:00:00.000Z" },
 ];
 
 export function buildSampleGarageExpenses(vehicles: Vehicle[], garages: Garage[]): GarageExpense[] {
   const byNo = new Map(vehicles.map((v) => [v.vehicle_no, v]));
   const byGarageName = new Map(garages.map((g) => [g.name, g]));
-  const v2392 = byNo.get("2392")!;
-  const v7326 = byNo.get("7326")!;
-  const universal = byGarageName.get("Universal")!;
+  const v1 = byNo.get("4417")!;
+  const v2 = byNo.get("8256")!;
+  const metro = byGarageName.get("Metro Tyres")!;
 
   const now = "2026-06-11T09:00:00.000Z";
 
   return [
     {
-      id: "gex-2392-1",
+      id: "gex-1-1",
       date: "2026-06-03",
-      vehicle_id: v2392.id,
-      odometer_reading: 76278,
-      work_description: "2 front tyres replaced (Universal); 2 tyres given for retreading (Hindustan)",
-      garage_id: universal.id,
-      bill_no: "T-01825 / Order-30",
-      amount: 14900,
+      vehicle_id: v1.id,
+      odometer_reading: 52400,
+      work_description: "2 front tyres replaced (Metro Tyres); 2 tyres given for retreading (Om Sai Motors)",
+      garage_id: metro.id,
+      bill_no: "MT-2210 / OS-88",
+      amount: 12500,
       category: "Garage/Maintenance",
       notes: "Combined bill across two garages on the same date — paper ledger recorded one total for both jobs.",
       created_by: null,
@@ -182,14 +174,14 @@ export function buildSampleGarageExpenses(vehicles: Vehicle[], garages: Garage[]
       updated_at: "2026-06-03T09:00:00.000Z",
     },
     {
-      id: "gex-7326-1",
+      id: "gex-2-1",
       date: "2026-06-11",
-      vehicle_id: v7326.id,
-      odometer_reading: 186160,
+      vehicle_id: v2.id,
+      odometer_reading: 144200,
       work_description: "Front tyre replaced",
-      garage_id: universal.id,
-      bill_no: "T-02083",
-      amount: 18300,
+      garage_id: metro.id,
+      bill_no: "MT-2355",
+      amount: 15800,
       category: "Garage/Maintenance",
       notes: null,
       created_by: null,

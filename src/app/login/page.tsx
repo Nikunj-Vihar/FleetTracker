@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, Suspense, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Fuel, Loader2, LogIn, Truck } from "lucide-react";
 import { signInWithPassword } from "@/lib/auth";
@@ -79,7 +80,14 @@ function LoginForm() {
           </button>
         </form>
 
-        <p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-slate-400">
+        <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
+          New fleet?{" "}
+          <Link href="/signup" className="font-medium text-brand-600 hover:underline dark:text-brand-400">
+            Create a workspace
+          </Link>
+        </p>
+
+        <p className="mt-4 flex items-center justify-center gap-1.5 text-xs text-slate-400">
           <Fuel size={12} /> Financial &amp; operational data — authorized fleet staff only
         </p>
       </div>

@@ -61,6 +61,25 @@ export async function signInWithPassword(email: string, password: string): Promi
   if (error) throw error;
 }
 
+// org_name lands in the new user's raw_user_meta_data, which
+// handle_new_user() (08_signup_trigger.sql) reads to name the fresh
+// organization it creates for them — sign-up and "get your own
+// isolated fleet" are the same action, no separate admin step.
+// Returns whether a session came back immediately: false means
+// Supabase's email-confirmation setting is on and the caller should
+// show a "check your email" message instead of redirecting.
+export async function signUpWithPassword(email: string, password: string, orgName: string): Promise<{ hasSession: boolean }> {
+  const client = getSupabaseClient();
+  if (!client) throw new Error("Supabase is not configured.");
+  const { data, error } = await client.auth.signUp({
+    email,
+    password,
+    options: { data: { org_name: orgName } },
+  });
+  if (error) throw error;
+  return { hasSession: data.session != null };
+}
+
 export async function signOut(): Promise<void> {
   const client = getSupabaseClient();
   if (!client) return;
