@@ -61,6 +61,44 @@ export async function signInWithPassword(email: string, password: string): Promi
   if (error) throw error;
 }
 
+// Account deletion is irreversible (deletes the whole organization and
+// everything in it — see 09_org_cascade_delete.sql), so it's gated
+// behind proving the user currently controls their account's email
+// inbox, not just holding an existing session. requestAccountDeletionCode
+// sends a one-time code; confirmAccountDeletion verifies it (minting a
+// fresh session in the process) and then calls the server-side
+// /api/account/delete route, which is the only place with the
+// privileged service-role key needed to actually delete the user.
+
+export async function requestAccountDeletionCode(email: string): Promise<void> {
+  const client = getSupabaseClient();
+  if (!client) throw new Error("Supabase is not configured.");
+  const { error } = await client.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+  if (error) throw error;
+}
+
+export async function confirmAccountDeletion(email: string, code: string): Promise<void> {
+  const client = getSupabaseClient();
+  if (!client) throw new Error("Supabase is not configured.");
+
+  const { data, error } = await client.auth.verifyOtp({ email, token: code, type: "email" });
+  if (error) throw error;
+  const accessToken = data.session?.access_token;
+  if (!accessToken) throw new Error("Could not confirm your identity — please try again.");
+
+  const res = await fetch("/api/account/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accessToken }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Failed to delete account.");
+  }
+
+  await client.auth.signOut();
+}
+
 // org_name lands in the new user's raw_user_meta_data, which
 // handle_new_user() (08_signup_trigger.sql) reads to name the fresh
 // organization it creates for them — sign-up and "get your own

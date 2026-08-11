@@ -52,6 +52,11 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
+// /api is excluded: API routes return JSON and manage their own auth
+// (e.g. /api/account/delete validates its own bearer token independent
+// of cookies) — redirecting them to /login would mean a browser fetch()
+// silently follows the redirect to a 200 HTML page instead of getting a
+// clean 401, which a caller checking res.ok would misread as success.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api).*)"],
 };
