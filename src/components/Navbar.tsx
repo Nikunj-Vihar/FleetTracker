@@ -11,6 +11,7 @@ import {
   Settings as SettingsIcon,
   Truck,
   Users,
+  Wrench,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ const NAV_LINKS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/log", label: "Log Trip", icon: Fuel },
   { href: "/entries", label: "Entries", icon: ListChecks },
+  { href: "/expenses", label: "Expenses", icon: Wrench },
   { href: "/vehicles", label: "Vehicles", icon: Truck },
   { href: "/drivers", label: "Drivers", icon: Users },
   { href: "/settings", label: "Settings", icon: SettingsIcon },

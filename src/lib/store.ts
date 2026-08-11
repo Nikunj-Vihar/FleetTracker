@@ -5,7 +5,7 @@
 // centralized (Code Guidelines #1, #3).
 
 import { getSupabaseClient, isSupabaseConfigured } from "./supabase";
-import { evaluateEntry } from "./validation";
+import { DEFAULT_EXPENSE_CATEGORY, evaluateEntry, validateGarageExpense } from "./validation";
 import type {
   AuditLogRecord,
   Driver,
@@ -13,6 +13,11 @@ import type {
   EntryEvaluation,
   FuelEntry,
   FuelEntryInput,
+  Garage,
+  GarageExpense,
+  GarageExpenseAuditLogRecord,
+  GarageExpenseInput,
+  GarageInput,
   Settings,
   ValidationIssue,
   Vehicle,
@@ -45,6 +50,9 @@ const LS_KEYS = {
   audit: "fleettracker.audit",
   settings: "fleettracker.settings",
   seeded: "fleettracker.seeded",
+  garages: "fleettracker.garages",
+  garageExpenses: "fleettracker.garageExpenses",
+  garageExpenseAudit: "fleettracker.garageExpenseAudit",
 };
 
 const DEFAULT_SETTINGS: Settings = { fuel_rate_inr: 95.5, anomaly_threshold_pct: 8.0 };
@@ -567,6 +575,280 @@ export async function updateSettings(changes: Partial<Settings>): Promise<Settin
 }
 
 // ---------------------------------------------------------------------
+// Garages (master data)
+// ---------------------------------------------------------------------
+
+export async function listGarages(): Promise<Garage[]> {
+  if (isSupabaseConfigured) {
+    const client = getSupabaseClient()!;
+    const { data, error } = await client.from("garages").select("*").order("name");
+    if (error) throw new Error(error.message);
+    return data as Garage[];
+  }
+  return lsGet<Garage[]>(LS_KEYS.garages, []).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function getGarageById(id: string): Promise<Garage | null> {
+  const garages = await listGarages();
+  return garages.find((g) => g.id === id) ?? null;
+}
+
+export async function createGarage(input: GarageInput): Promise<Garage> {
+  if (!input.name?.trim()) {
+    throw new ValidationError([
+      { field: "name", severity: "ERROR", code: "REQUIRED", message: "Garage name is required." },
+    ]);
+  }
+
+  const record: Garage = {
+    id: newId(),
+    name: input.name.trim(),
+    phone: input.phone?.trim() || null,
+    created_at: new Date().toISOString(),
+  };
+
+  if (isSupabaseConfigured) {
+    const client = getSupabaseClient()!;
+    const { data, error } = await client
+      .from("garages")
+      .insert({ name: record.name, phone: record.phone })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data as Garage;
+  }
+
+  const garages = lsGet<Garage[]>(LS_KEYS.garages, []);
+  garages.push(record);
+  lsSet(LS_KEYS.garages, garages);
+  return record;
+}
+
+// ---------------------------------------------------------------------
+// Garage / maintenance expenses
+// ---------------------------------------------------------------------
+
+export async function listGarageExpenses(): Promise<GarageExpense[]> {
+  if (isSupabaseConfigured) {
+    const client = getSupabaseClient()!;
+    const { data, error } = await client
+      .from("garage_expenses")
+      .select("*")
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    return data as GarageExpense[];
+  }
+  return [...lsGet<GarageExpense[]>(LS_KEYS.garageExpenses, [])].sort((a, b) =>
+    a.created_at.localeCompare(b.created_at)
+  );
+}
+
+export async function getGarageExpenseById(id: string): Promise<GarageExpense | null> {
+  const expenses = await listGarageExpenses();
+  return expenses.find((e) => e.id === id) ?? null;
+}
+
+const EDITABLE_EXPENSE_FIELDS: (keyof GarageExpenseInput)[] = [
+  "date",
+  "vehicle_id",
+  "odometer_reading",
+  "work_description",
+  "garage_id",
+  "bill_no",
+  "amount",
+  "category",
+  "notes",
+];
+
+export interface CreateGarageExpenseOptions {
+  createdBy?: string | null;
+}
+
+export async function createGarageExpense(
+  input: GarageExpenseInput,
+  opts: CreateGarageExpenseOptions = {}
+): Promise<GarageExpense> {
+  const issues = validateGarageExpense(input);
+  if (issues.length > 0) throw new ValidationError(issues);
+
+  const vehicle = await getVehicleById(input.vehicle_id);
+  if (!vehicle) {
+    throw new ValidationError([
+      { field: "vehicle_id", severity: "ERROR", code: "NOT_FOUND", message: "Selected vehicle was not found." },
+    ]);
+  }
+
+  const now = new Date().toISOString();
+  const category = input.category?.trim() || DEFAULT_EXPENSE_CATEGORY;
+
+  if (isSupabaseConfigured) {
+    const client = getSupabaseClient()!;
+    const { data, error } = await client
+      .from("garage_expenses")
+      .insert({
+        date: input.date,
+        vehicle_id: input.vehicle_id,
+        odometer_reading: input.odometer_reading ?? null,
+        work_description: input.work_description.trim(),
+        garage_id: input.garage_id ?? null,
+        bill_no: input.bill_no?.trim() || null,
+        amount: input.amount,
+        category,
+        notes: input.notes ?? null,
+        created_by: opts.createdBy ?? null,
+      })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data as GarageExpense;
+  }
+
+  const record: GarageExpense = {
+    id: newId(),
+    date: input.date,
+    vehicle_id: input.vehicle_id,
+    odometer_reading: input.odometer_reading ?? null,
+    work_description: input.work_description.trim(),
+    garage_id: input.garage_id ?? null,
+    bill_no: input.bill_no?.trim() || null,
+    amount: input.amount,
+    category,
+    notes: input.notes ?? null,
+    created_by: opts.createdBy ?? null,
+    created_at: now,
+    updated_at: now,
+  };
+
+  const expenses = lsGet<GarageExpense[]>(LS_KEYS.garageExpenses, []);
+  expenses.push(record);
+  lsSet(LS_KEYS.garageExpenses, expenses);
+  return record;
+}
+
+export interface CorrectGarageExpenseMeta {
+  changedBy: string;
+  reason: string;
+}
+
+export async function correctGarageExpense(
+  id: string,
+  changes: Partial<GarageExpenseInput>,
+  meta: CorrectGarageExpenseMeta
+): Promise<GarageExpense> {
+  if (!meta.reason?.trim()) {
+    throw new ValidationError([
+      { field: "reason", severity: "ERROR", code: "REQUIRED", message: "A reason is required for every correction." },
+    ]);
+  }
+
+  const existing = await getGarageExpenseById(id);
+  if (!existing) throw new Error("Expense not found.");
+
+  const merged: GarageExpenseInput = {
+    date: changes.date ?? existing.date,
+    vehicle_id: changes.vehicle_id ?? existing.vehicle_id,
+    odometer_reading: changes.odometer_reading !== undefined ? changes.odometer_reading : existing.odometer_reading,
+    work_description: changes.work_description ?? existing.work_description,
+    garage_id: changes.garage_id !== undefined ? changes.garage_id : existing.garage_id,
+    bill_no: changes.bill_no !== undefined ? changes.bill_no : existing.bill_no,
+    amount: changes.amount ?? existing.amount,
+    category: changes.category ?? existing.category,
+    notes: changes.notes !== undefined ? changes.notes : existing.notes,
+  };
+
+  const issues = validateGarageExpense(merged);
+  if (issues.length > 0) throw new ValidationError(issues);
+
+  const vehicle = await getVehicleById(merged.vehicle_id);
+  if (!vehicle) {
+    throw new ValidationError([
+      { field: "vehicle_id", severity: "ERROR", code: "NOT_FOUND", message: "Selected vehicle was not found." },
+    ]);
+  }
+
+  type AuditDraft = Omit<GarageExpenseAuditLogRecord, "id" | "created_at">;
+  const auditDrafts: AuditDraft[] = [];
+  const existingAsInput = existing as unknown as Record<string, unknown>;
+  const mergedAsInput = merged as unknown as Record<string, unknown>;
+
+  for (const field of EDITABLE_EXPENSE_FIELDS) {
+    const oldVal = existingAsInput[field];
+    const newVal = mergedAsInput[field];
+    if (String(oldVal ?? "") !== String(newVal ?? "")) {
+      auditDrafts.push({
+        entry_id: id,
+        field_name: field,
+        old_value: oldVal == null ? null : String(oldVal),
+        new_value: newVal == null ? null : String(newVal),
+        changed_by: meta.changedBy,
+        reason: meta.reason,
+      });
+    }
+  }
+
+  if (auditDrafts.length === 0) {
+    return existing;
+  }
+
+  const now = new Date().toISOString();
+
+  if (isSupabaseConfigured) {
+    const client = getSupabaseClient()!;
+    const { error: auditError } = await client.from("garage_expense_audit_logs").insert(auditDrafts);
+    if (auditError) throw new Error(auditError.message);
+
+    const { data, error } = await client
+      .from("garage_expenses")
+      .update({
+        date: merged.date,
+        vehicle_id: merged.vehicle_id,
+        odometer_reading: merged.odometer_reading,
+        work_description: merged.work_description,
+        garage_id: merged.garage_id,
+        bill_no: merged.bill_no,
+        amount: merged.amount,
+        category: merged.category,
+        notes: merged.notes,
+      })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data as GarageExpense;
+  }
+
+  const audits = lsGet<GarageExpenseAuditLogRecord[]>(LS_KEYS.garageExpenseAudit, []);
+  for (const draft of auditDrafts) {
+    audits.push({ ...draft, id: newId(), created_at: now });
+  }
+  lsSet(LS_KEYS.garageExpenseAudit, audits);
+
+  const updated: GarageExpense = { ...existing, ...merged, updated_at: now };
+  const expenses = lsGet<GarageExpense[]>(LS_KEYS.garageExpenses, []);
+  const idx = expenses.findIndex((e) => e.id === id);
+  if (idx >= 0) expenses[idx] = updated;
+  lsSet(LS_KEYS.garageExpenses, expenses);
+
+  return updated;
+}
+
+export async function listGarageExpenseAuditLogs(entryId: string): Promise<GarageExpenseAuditLogRecord[]> {
+  if (isSupabaseConfigured) {
+    const client = getSupabaseClient()!;
+    const { data, error } = await client
+      .from("garage_expense_audit_logs")
+      .select("*")
+      .eq("entry_id", entryId)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return data as GarageExpenseAuditLogRecord[];
+  }
+  return lsGet<GarageExpenseAuditLogRecord[]>(LS_KEYS.garageExpenseAudit, [])
+    .filter((a) => a.entry_id === entryId)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+// ---------------------------------------------------------------------
 // Seed / reset (LocalStorage mode only — Supabase data is seeded via SQL
 // or the client's own entries, not overwritten from the browser)
 // ---------------------------------------------------------------------
@@ -576,11 +858,15 @@ export async function seedLocalSampleData(force = false): Promise<void> {
   const alreadySeeded = window.localStorage.getItem(LS_KEYS.seeded);
   if (alreadySeeded && !force) return;
 
-  const { sampleVehicles, sampleDrivers, buildSampleEntries } = await import("./mockData");
+  const { sampleVehicles, sampleDrivers, sampleGarages, buildSampleEntries, buildSampleGarageExpenses } =
+    await import("./mockData");
   lsSet(LS_KEYS.vehicles, sampleVehicles);
   lsSet(LS_KEYS.drivers, sampleDrivers);
   lsSet(LS_KEYS.entries, buildSampleEntries(sampleVehicles, sampleDrivers));
   lsSet(LS_KEYS.audit, []);
+  lsSet(LS_KEYS.garages, sampleGarages);
+  lsSet(LS_KEYS.garageExpenses, buildSampleGarageExpenses(sampleVehicles, sampleGarages));
+  lsSet(LS_KEYS.garageExpenseAudit, []);
   window.localStorage.setItem(LS_KEYS.seeded, "true");
 }
 

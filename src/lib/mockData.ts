@@ -24,7 +24,7 @@
 // signal that made the client suspicious in the first place.
 
 import { checkContinuity, computeFields, computeVehicleBaseline, detectAnomaly } from "./validation";
-import type { Driver, FuelEntry, Vehicle } from "./types";
+import type { Driver, FuelEntry, Garage, GarageExpense, Vehicle } from "./types";
 
 export const sampleVehicles: Vehicle[] = [
   {
@@ -141,5 +141,60 @@ export function buildSampleEntries(vehicles: Vehicle[], _drivers: Driver[]): Fue
     ...buildEntriesForVehicle(v2392, VEHICLE_2392_TRIPS),
     ...buildEntriesForVehicle(v7326, VEHICLE_7326_TRIPS),
     ...buildEntriesForVehicle(v5809, VEHICLE_5809_TRIPS),
+  ];
+}
+
+// Transcribed from the client's garage/maintenance ledger (one page per
+// vehicle: Date | K.M's | Type of Work/Replacement | Garage | Bill No |
+// Total Cost). Only 2392 and 7326 have entries logged so far; 5809's page
+// was not shown. NOTE: transcribed from a conversation record rather than
+// a fresh read of the original photos — worth double-checking these two
+// rows' exact figures against the paper ledger before treating them as
+// authoritative.
+export const sampleGarages: Garage[] = [
+  { id: "grg-universal", name: "Universal", phone: null, created_at: "2026-06-03T05:00:00.000Z" },
+  { id: "grg-hindustan", name: "Hindustan", phone: null, created_at: "2026-06-03T05:00:00.000Z" },
+];
+
+export function buildSampleGarageExpenses(vehicles: Vehicle[], garages: Garage[]): GarageExpense[] {
+  const byNo = new Map(vehicles.map((v) => [v.vehicle_no, v]));
+  const byGarageName = new Map(garages.map((g) => [g.name, g]));
+  const v2392 = byNo.get("2392")!;
+  const v7326 = byNo.get("7326")!;
+  const universal = byGarageName.get("Universal")!;
+
+  const now = "2026-06-11T09:00:00.000Z";
+
+  return [
+    {
+      id: "gex-2392-1",
+      date: "2026-06-03",
+      vehicle_id: v2392.id,
+      odometer_reading: 76278,
+      work_description: "2 front tyres replaced (Universal); 2 tyres given for retreading (Hindustan)",
+      garage_id: universal.id,
+      bill_no: "T-01825 / Order-30",
+      amount: 14900,
+      category: "Garage/Maintenance",
+      notes: "Combined bill across two garages on the same date — paper ledger recorded one total for both jobs.",
+      created_by: null,
+      created_at: "2026-06-03T09:00:00.000Z",
+      updated_at: "2026-06-03T09:00:00.000Z",
+    },
+    {
+      id: "gex-7326-1",
+      date: "2026-06-11",
+      vehicle_id: v7326.id,
+      odometer_reading: 186160,
+      work_description: "Front tyre replaced",
+      garage_id: universal.id,
+      bill_no: "T-02083",
+      amount: 18300,
+      category: "Garage/Maintenance",
+      notes: null,
+      created_by: null,
+      created_at: now,
+      updated_at: now,
+    },
   ];
 }

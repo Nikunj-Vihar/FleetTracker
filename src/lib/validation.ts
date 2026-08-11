@@ -16,9 +16,12 @@ import type {
   EntryEvaluation,
   FuelEntry,
   FuelEntryInput,
+  GarageExpenseInput,
   ValidationIssue,
   Vehicle,
 } from "./types";
+
+export const DEFAULT_EXPENSE_CATEGORY = "Garage/Maintenance";
 
 // A typical mechanical/digital odometer on a fleet truck rolls over at this
 // value. Only relevant for the rare, explicit odometer-rollover override.
@@ -358,6 +361,49 @@ export function evaluateEntry(opts: EvaluateEntryOptions): EntryEvaluation {
     issues,
     isValid: !hasBlockingError,
   };
+}
+
+// ---------------------------------------------------------------------
+// Garage / maintenance expenses — lighter validation than fuel entries:
+// there's no continuity or baseline concept for a maintenance bill, just
+// required-field and sanity checks.
+// ---------------------------------------------------------------------
+
+export function validateGarageExpense(input: GarageExpenseInput): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  if (!input.date) {
+    issues.push({ field: "date", severity: "ERROR", code: "REQUIRED", message: "Date is required." });
+  }
+  if (!input.vehicle_id) {
+    issues.push({ field: "vehicle_id", severity: "ERROR", code: "REQUIRED", message: "Vehicle is required." });
+  }
+  if (!input.work_description?.trim()) {
+    issues.push({
+      field: "work_description",
+      severity: "ERROR",
+      code: "REQUIRED",
+      message: "A description of the work done is required.",
+    });
+  }
+  if (input.amount == null || Number.isNaN(input.amount) || input.amount <= 0) {
+    issues.push({
+      field: "amount",
+      severity: "ERROR",
+      code: "INVALID_AMOUNT",
+      message: "Amount must be greater than zero.",
+    });
+  }
+  if (input.odometer_reading != null && input.odometer_reading < 0) {
+    issues.push({
+      field: "odometer_reading",
+      severity: "ERROR",
+      code: "NEGATIVE_READING",
+      message: "Odometer reading cannot be negative.",
+    });
+  }
+
+  return issues;
 }
 
 // ---------------------------------------------------------------------

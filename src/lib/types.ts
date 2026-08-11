@@ -58,6 +58,45 @@ export interface Settings {
   anomaly_threshold_pct: number;
 }
 
+// --- Garage / maintenance expenses --------------------------------------
+// Mirrors FuelEntry's shape: anchored to vehicle_id (UUID), never the
+// plate string, with the same append-only correction pattern via
+// GarageExpenseAuditLogRecord instead of silent overwrites.
+
+export interface Garage {
+  id: string;
+  name: string;
+  phone: string | null;
+  created_at: string;
+}
+
+export interface GarageExpense {
+  id: string;
+  date: string;
+  vehicle_id: string;
+  odometer_reading: number | null;
+  work_description: string;
+  garage_id: string | null;
+  bill_no: string | null;
+  amount: number;
+  category: string;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GarageExpenseAuditLogRecord {
+  id: string;
+  entry_id: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  changed_by: string | null;
+  reason: string | null;
+  created_at: string;
+}
+
 // --- Input / form shapes -----------------------------------------------
 
 // Fields captured directly from the entry form. Total KMS and Average km/l
@@ -84,6 +123,26 @@ export interface VehicleInput {
 export interface DriverInput {
   name: string;
   phone?: string | null;
+}
+
+export interface GarageInput {
+  name: string;
+  phone?: string | null;
+}
+
+// odometer_reading and bill_no are frequently unknown/skipped on the paper
+// ledger (a garage visit doesn't always come with a formal invoice), so
+// both stay optional rather than required.
+export interface GarageExpenseInput {
+  date: string;
+  vehicle_id: string;
+  odometer_reading?: number | null;
+  work_description: string;
+  garage_id?: string | null;
+  bill_no?: string | null;
+  amount: number;
+  category?: string;
+  notes?: string | null;
 }
 
 // --- Validation / anomaly engine result shapes --------------------------

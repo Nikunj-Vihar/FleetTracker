@@ -2,13 +2,13 @@
 
 import { FormEvent, useState } from "react";
 import { Loader2, Plus, X } from "lucide-react";
-import { createDriver, createVehicle, ValidationError } from "@/lib/store";
-import type { Driver, Vehicle } from "@/lib/types";
+import { createDriver, createGarage, createVehicle, ValidationError } from "@/lib/store";
+import type { Driver, Garage, Vehicle } from "@/lib/types";
 
 interface InlineAddModalProps {
-  type: "vehicle" | "driver";
+  type: "vehicle" | "driver" | "garage";
   onClose: () => void;
-  onCreated: (record: Vehicle | Driver) => void;
+  onCreated: (record: Vehicle | Driver | Garage) => void;
 }
 
 export default function InlineAddModal({ type, onClose, onCreated }: InlineAddModalProps) {
@@ -38,9 +38,12 @@ export default function InlineAddModal({ type, onClose, onCreated }: InlineAddMo
           tank_capacity: Number(tankCapacity) || 300,
         });
         onCreated(vehicle);
-      } else {
+      } else if (type === "driver") {
         const driver = await createDriver({ name, phone: phone || null });
         onCreated(driver);
+      } else {
+        const garage = await createGarage({ name, phone: phone || null });
+        onCreated(garage);
       }
     } catch (err) {
       if (err instanceof ValidationError) {
@@ -58,7 +61,7 @@ export default function InlineAddModal({ type, onClose, onCreated }: InlineAddMo
       <div className="glass-panel-solid w-full max-w-sm p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-            Add New {type === "vehicle" ? "Vehicle" : "Driver"}
+            Add New {type === "vehicle" ? "Vehicle" : type === "driver" ? "Driver" : "Garage"}
           </h2>
           <button
             type="button"
@@ -126,12 +129,12 @@ export default function InlineAddModal({ type, onClose, onCreated }: InlineAddMo
           ) : (
             <>
               <div>
-                <label className="label-text">Driver Name *</label>
+                <label className="label-text">{type === "driver" ? "Driver Name *" : "Garage Name *"}</label>
                 <input
                   className="input-field"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Murugan S"
+                  placeholder={type === "driver" ? "Murugan S" : "Universal Tyres"}
                   required
                   autoFocus
                 />
@@ -155,7 +158,7 @@ export default function InlineAddModal({ type, onClose, onCreated }: InlineAddMo
             </button>
             <button type="submit" disabled={submitting} className="btn-primary">
               {submitting ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-              Add {type === "vehicle" ? "Vehicle" : "Driver"}
+              Add {type === "vehicle" ? "Vehicle" : type === "driver" ? "Driver" : "Garage"}
             </button>
           </div>
         </form>
