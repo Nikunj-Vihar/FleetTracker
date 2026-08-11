@@ -5,7 +5,7 @@ import Navbar from "./Navbar";
 
 export default function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const hideChrome = pathname === "/login";
+  const hideChrome = pathname === "/login" || pathname === "/signup";
 
   if (hideChrome) return <>{children}</>;
 

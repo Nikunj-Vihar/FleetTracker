@@ -112,9 +112,10 @@ export default function EntriesPage() {
         </div>
       ) : (
         <>
-          {/* Card list — small screens, where a wide table would need
-              sideways scrolling to see KMS/Average/Flags/actions at all. */}
-          <div className="space-y-2 sm:hidden">
+          {/* Card list — below md (also covers the 640-767px tablet range,
+              where this 900px-wide table would overflow the viewport
+              rather than just scroll within its own container). */}
+          <div className="space-y-2 md:hidden">
             {filtered.map((entry) => (
               <EntryCard
                 key={entry.id}
@@ -127,8 +128,8 @@ export default function EntriesPage() {
             ))}
           </div>
 
-          {/* Full table — sm and up */}
-          <div className="glass-panel hidden overflow-x-auto sm:block">
+          {/* Full table — md and up, matching Navbar's own mobile/desktop breakpoint */}
+          <div className="glass-panel hidden overflow-x-auto md:block">
             <table className="w-full min-w-[900px] text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">

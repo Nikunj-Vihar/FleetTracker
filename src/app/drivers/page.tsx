@@ -67,15 +67,15 @@ export default function DriversPage() {
         <div className="glass-panel px-3 py-10 text-center text-sm text-slate-400">No drivers yet.</div>
       ) : (
         <>
-          {/* Card list — small screens */}
-          <div className="space-y-2 sm:hidden">
+          {/* Card list — below md (also covers the 640-767px tablet range) */}
+          <div className="space-y-2 md:hidden">
             {driverStats.map((stat) => (
               <DriverCard key={stat.driver.id} {...stat} />
             ))}
           </div>
 
-          {/* Full table — sm and up */}
-          <div className="glass-panel hidden overflow-x-auto sm:block">
+          {/* Full table — md and up, matching Navbar's own mobile/desktop breakpoint */}
+          <div className="glass-panel hidden overflow-x-auto md:block">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">

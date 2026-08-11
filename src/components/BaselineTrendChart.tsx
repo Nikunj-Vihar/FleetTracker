@@ -98,6 +98,23 @@ export default function BaselineTrendChart({ points, title }: { points: TrendPoi
     );
   }
 
+  // Explicit domain computed from the real average/lowerBound/upperBound
+  // values, rather than Recharts' "dataMin"/"dataMax" auto-domain: the
+  // invisible lowerBound Area stacks from a 0 baseline (stackId="band"),
+  // which otherwise drags the auto-computed domain down to include 0
+  // regardless of the actual data, squeezing the real values into a
+  // sliver of the chart.
+  const allValues: number[] = [];
+  for (const p of points) {
+    allValues.push(p.average);
+    if (p.lowerBound != null) allValues.push(p.lowerBound);
+    if (p.upperBound != null) allValues.push(p.upperBound);
+  }
+  const minVal = Math.min(...allValues);
+  const maxVal = Math.max(...allValues);
+  const pad = Math.max((maxVal - minVal) * 0.15, 0.5);
+  const yDomain: [number, number] = [round2(minVal - pad), round2(maxVal + pad)];
+
   return (
     <div className="glass-panel p-4 sm:p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -134,7 +151,8 @@ export default function BaselineTrendChart({ points, title }: { points: TrendPoi
             axisLine={false}
             tickLine={false}
             width={40}
-            domain={["dataMin - 1", "dataMax + 1"]}
+            domain={yDomain}
+            allowDataOverflow
           />
           <Tooltip content={<ChartTooltip />} />
           <Area
