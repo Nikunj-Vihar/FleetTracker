@@ -34,6 +34,8 @@ export default function EditGarageExpenseModal({
   const [garageId, setGarageId] = useState<string | null>(expense.garage_id);
   const [billNo, setBillNo] = useState(expense.bill_no ?? "");
   const [amount, setAmount] = useState(String(expense.amount));
+  const [isPaid, setIsPaid] = useState(expense.is_paid);
+  const [paidDate, setPaidDate] = useState(expense.paid_date ?? "");
   const [reason, setReason] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
@@ -71,6 +73,8 @@ export default function EditGarageExpenseModal({
           garage_id: garageId,
           bill_no: billNo || null,
           amount: Number(amount),
+          is_paid: isPaid,
+          paid_date: isPaid ? paidDate || null : null,
         },
         { changedBy: user?.label ?? "Unknown", reason: reason.trim() }
       );
@@ -128,6 +132,28 @@ export default function EditGarageExpenseModal({
             <div>
               <label className="label-text">Total Cost (₹)</label>
               <input type="number" step="0.01" className="input-field" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            </div>
+            <div className="sm:col-span-2 flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                  checked={isPaid}
+                  onChange={(e) => setIsPaid(e.target.checked)}
+                />
+                Paid
+              </label>
+              {isPaid && (
+                <div className="flex items-center gap-2">
+                  <label className="label-text mb-0">Paid on</label>
+                  <input
+                    type="date"
+                    className="input-field w-40"
+                    value={paidDate}
+                    onChange={(e) => setPaidDate(e.target.value)}
+                  />
+                </div>
+              )}
             </div>
           </div>
 

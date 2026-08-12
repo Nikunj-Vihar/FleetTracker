@@ -657,6 +657,8 @@ const EDITABLE_EXPENSE_FIELDS: (keyof GarageExpenseInput)[] = [
   "bill_no",
   "amount",
   "category",
+  "is_paid",
+  "paid_date",
   "notes",
 ];
 
@@ -694,6 +696,8 @@ export async function createGarageExpense(
         bill_no: input.bill_no?.trim() || null,
         amount: input.amount,
         category,
+        is_paid: input.is_paid ?? false,
+        paid_date: input.paid_date ?? null,
         notes: input.notes ?? null,
         created_by: opts.createdBy ?? null,
       })
@@ -713,6 +717,8 @@ export async function createGarageExpense(
     bill_no: input.bill_no?.trim() || null,
     amount: input.amount,
     category,
+    is_paid: input.is_paid ?? false,
+    paid_date: input.paid_date ?? null,
     notes: input.notes ?? null,
     created_by: opts.createdBy ?? null,
     created_at: now,
@@ -753,6 +759,8 @@ export async function correctGarageExpense(
     bill_no: changes.bill_no !== undefined ? changes.bill_no : existing.bill_no,
     amount: changes.amount ?? existing.amount,
     category: changes.category ?? existing.category,
+    is_paid: changes.is_paid !== undefined ? changes.is_paid : existing.is_paid,
+    paid_date: changes.paid_date !== undefined ? changes.paid_date : existing.paid_date,
     notes: changes.notes !== undefined ? changes.notes : existing.notes,
   };
 
@@ -808,6 +816,8 @@ export async function correctGarageExpense(
         bill_no: merged.bill_no,
         amount: merged.amount,
         category: merged.category,
+        is_paid: merged.is_paid,
+        paid_date: merged.paid_date,
         notes: merged.notes,
       })
       .eq("id", id)
@@ -830,6 +840,24 @@ export async function correctGarageExpense(
   lsSet(LS_KEYS.garageExpenses, expenses);
 
   return updated;
+}
+
+// One-click "Mark Paid" / "Mark Unpaid" toggle for the expenses list. This
+// is a routine workflow update (a bill gets settled days after it's logged),
+// not a data-entry fix, so it doesn't prompt for a correction reason like
+// correctGarageExpense normally requires — but it still goes through that
+// same function with an auto-generated reason, so it's still fully captured
+// in the audit trail rather than silently overwriting the row.
+export async function setGarageExpensePaidStatus(
+  id: string,
+  isPaid: boolean,
+  changedBy: string
+): Promise<GarageExpense> {
+  return correctGarageExpense(
+    id,
+    { is_paid: isPaid, paid_date: isPaid ? new Date().toISOString().slice(0, 10) : null },
+    { changedBy, reason: isPaid ? "Marked as paid" : "Marked as unpaid" }
+  );
 }
 
 export async function listGarageExpenseAuditLogs(entryId: string): Promise<GarageExpenseAuditLogRecord[]> {

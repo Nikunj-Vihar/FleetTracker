@@ -14,6 +14,8 @@ const FIELD_LABELS: Record<string, string> = {
   bill_no: "Bill No.",
   amount: "Total Cost",
   category: "Category",
+  is_paid: "Paid Status",
+  paid_date: "Paid Date",
   notes: "Notes",
 };
 

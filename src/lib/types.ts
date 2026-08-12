@@ -80,6 +80,8 @@ export interface GarageExpense {
   bill_no: string | null;
   amount: number;
   category: string;
+  is_paid: boolean;
+  paid_date: string | null;
   notes: string | null;
   created_by: string | null;
   created_at: string;
@@ -142,6 +144,8 @@ export interface GarageExpenseInput {
   bill_no?: string | null;
   amount: number;
   category?: string;
+  is_paid?: boolean;
+  paid_date?: string | null;
   notes?: string | null;
 }
 
