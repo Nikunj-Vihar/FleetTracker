@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   Fuel,
   LayoutDashboard,
   ListChecks,
+  LogOut,
   Menu,
   Settings as SettingsIcon,
   Truck,
@@ -15,6 +16,9 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { signOut } from "@/lib/auth";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import HelpButton from "./HelpButton";
 import ThemeToggle from "./ThemeToggle";
 
 const NAV_LINKS = [
@@ -29,7 +33,15 @@ const NAV_LINKS = [
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    await signOut();
+    router.push("/login");
+  }
 
   return (
     <header className="sticky top-0 z-40 border-b border-white/40 bg-white/70 backdrop-blur-md dark:border-white/10 dark:bg-slate-950/70">
@@ -69,6 +81,20 @@ export default function Navbar() {
           </nav>
 
           <ThemeToggle />
+          <HelpButton />
+
+          {isSupabaseConfigured && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-900/5 dark:text-slate-300 dark:hover:bg-white/10"
+              aria-label="Log out"
+              title="Log out"
+            >
+              <LogOut size={18} />
+            </button>
+          )}
 
           <button
             type="button"
