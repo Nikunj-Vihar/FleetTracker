@@ -1,18 +1,20 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Fuel, Gauge, Loader2, MapPin, Route } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Fuel, Gauge, Loader2, MapPin, Route, Sparkles } from "lucide-react";
 import SearchableSelect from "./SearchableSelect";
 import InlineAddModal from "./InlineAddModal";
 import { useCurrentUser } from "@/lib/auth";
 import { createEntry, getVehicleEntryContext, getSettings, ValidationError } from "@/lib/store";
 import { evaluateEntry } from "@/lib/validation";
+import { rankDriversForVehicle, rankVehiclesForDriver, reorderByRank } from "@/lib/pairing";
 import type { Driver, EntryEvaluation, FuelEntry, Vehicle } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface DailyLogFormProps {
   vehicles: Vehicle[];
   drivers: Driver[];
+  entries: FuelEntry[];
   onVehicleCreated: (vehicle: Vehicle) => void;
   onDriverCreated: (driver: Driver) => void;
   onEntryCreated: (entry: FuelEntry) => void;
@@ -22,9 +24,18 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function driverName(drivers: Driver[], id: string): string {
+  return drivers.find((d) => d.id === id)?.name ?? "Unknown";
+}
+
+function vehicleNo(vehicles: Vehicle[], id: string): string {
+  return vehicles.find((v) => v.id === id)?.vehicle_no ?? "Unknown";
+}
+
 export default function DailyLogForm({
   vehicles,
   drivers,
+  entries,
   onVehicleCreated,
   onDriverCreated,
   onEntryCreated,
@@ -35,6 +46,12 @@ export default function DailyLogForm({
   const [place, setPlace] = useState("");
   const [vehicleId, setVehicleId] = useState<string | null>(null);
   const [driverId, setDriverId] = useState<string | null>(null);
+  // Tracks whether the current vehicle/driver value came from the pairing
+  // suggestion below rather than an explicit user choice — only
+  // auto-filled values get overwritten if the other field changes again;
+  // a manual pick is never silently replaced.
+  const [driverAutoFilled, setDriverAutoFilled] = useState(false);
+  const [vehicleAutoFilled, setVehicleAutoFilled] = useState(false);
   const [onwardReading, setOnwardReading] = useState("");
   const [returnReading, setReturnReading] = useState("");
   const [dieselConsumed, setDieselConsumed] = useState("");
@@ -53,6 +70,54 @@ export default function DailyLogForm({
 
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId) ?? null;
   const selectedDriver = drivers.find((d) => d.id === driverId) ?? null;
+
+  // Pairing suggestions from all-time trip history — most trucks have one
+  // or two regular drivers even though any driver can technically take any
+  // truck, so ranking past pairings surfaces the likely match instead of
+  // making the user search the full list every time.
+  const driverIds = useMemo(() => new Set(drivers.map((d) => d.id)), [drivers]);
+  const vehicleIds = useMemo(() => new Set(vehicles.map((v) => v.id)), [vehicles]);
+  const rankedDrivers = useMemo(
+    () => (vehicleId ? rankDriversForVehicle(entries, vehicleId).filter((r) => driverIds.has(r.id)) : []),
+    [entries, vehicleId, driverIds]
+  );
+  const rankedVehicles = useMemo(
+    () => (driverId ? rankVehiclesForDriver(entries, driverId).filter((r) => vehicleIds.has(r.id)) : []),
+    [entries, driverId, vehicleIds]
+  );
+  const orderedDrivers = useMemo(
+    () => reorderByRank(drivers, (d) => d.id, rankedDrivers),
+    [drivers, rankedDrivers]
+  );
+  const orderedVehicles = useMemo(
+    () => reorderByRank(vehicles, (v) => v.id, rankedVehicles),
+    [vehicles, rankedVehicles]
+  );
+
+  // Auto-fill the driver with this vehicle's most frequent past driver,
+  // but only when the driver field is empty or still holds a previous
+  // auto-fill — a manual pick is never overwritten.
+  useEffect(() => {
+    if (rankedDrivers.length === 0) return;
+    if (driverId && !driverAutoFilled) return;
+    const top = rankedDrivers[0].id;
+    if (top !== driverId) {
+      setDriverId(top);
+      setDriverAutoFilled(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rankedDrivers]);
+
+  useEffect(() => {
+    if (rankedVehicles.length === 0) return;
+    if (vehicleId && !vehicleAutoFilled) return;
+    const top = rankedVehicles[0].id;
+    if (top !== vehicleId) {
+      setVehicleId(top);
+      setVehicleAutoFilled(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rankedVehicles]);
 
   useEffect(() => {
     getSettings().then((s) => setThresholdPct(s.anomaly_threshold_pct));
@@ -139,6 +204,8 @@ export default function DailyLogForm({
     if (!keepVehicleDriver) {
       setVehicleId(null);
       setDriverId(null);
+      setVehicleAutoFilled(false);
+      setDriverAutoFilled(false);
     }
   }
 
@@ -228,9 +295,12 @@ export default function DailyLogForm({
           <div>
             <label className="label-text">Driver *</label>
             <SearchableSelect
-              items={drivers}
+              items={orderedDrivers}
               value={driverId}
-              onChange={setDriverId}
+              onChange={(id) => {
+                setDriverId(id);
+                setDriverAutoFilled(false);
+              }}
               getId={(d) => d.id}
               getLabel={(d) => d.name}
               getSubLabel={(d) => d.phone}
@@ -238,13 +308,22 @@ export default function DailyLogForm({
               onAddNew={() => setAddModal("driver")}
               addNewLabel="Add new driver"
             />
+            {rankedDrivers.length > 0 && (
+              <p className="mt-1 flex items-center gap-1 text-xs text-brand-600 dark:text-brand-400">
+                <Sparkles size={11} />
+                Usually driven by: {rankedDrivers.slice(0, 3).map((r) => driverName(drivers, r.id)).join(", ")}
+              </p>
+            )}
           </div>
           <div>
             <label className="label-text">Vehicle No *</label>
             <SearchableSelect
-              items={vehicles}
+              items={orderedVehicles}
               value={vehicleId}
-              onChange={setVehicleId}
+              onChange={(id) => {
+                setVehicleId(id);
+                setVehicleAutoFilled(false);
+              }}
               getId={(v) => v.id}
               getLabel={(v) => v.vehicle_no}
               getSubLabel={(v) => v.model}
@@ -252,6 +331,12 @@ export default function DailyLogForm({
               onAddNew={() => setAddModal("vehicle")}
               addNewLabel="Add new vehicle"
             />
+            {rankedVehicles.length > 0 && (
+              <p className="mt-1 flex items-center gap-1 text-xs text-brand-600 dark:text-brand-400">
+                <Sparkles size={11} />
+                Usually drives: {rankedVehicles.slice(0, 3).map((r) => vehicleNo(vehicles, r.id)).join(", ")}
+              </p>
+            )}
           </div>
 
           <div>
@@ -390,10 +475,12 @@ export default function DailyLogForm({
               const vehicle = record as Vehicle;
               onVehicleCreated(vehicle);
               setVehicleId(vehicle.id);
+              setVehicleAutoFilled(false);
             } else {
               const driver = record as Driver;
               onDriverCreated(driver);
               setDriverId(driver.id);
+              setDriverAutoFilled(false);
             }
             setAddModal(null);
           }}

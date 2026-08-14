@@ -3,20 +3,22 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import DailyLogForm from "@/components/DailyLogForm";
-import { listDrivers, listVehicles, seedLocalSampleData } from "@/lib/store";
-import type { Driver, Vehicle } from "@/lib/types";
+import { listDrivers, listEntries, listVehicles, seedLocalSampleData } from "@/lib/store";
+import type { Driver, FuelEntry, Vehicle } from "@/lib/types";
 
 export default function LogPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [entries, setEntries] = useState<FuelEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       await seedLocalSampleData();
-      const [v, d] = await Promise.all([listVehicles(), listDrivers()]);
+      const [v, d, e] = await Promise.all([listVehicles(), listDrivers(), listEntries()]);
       setVehicles(v);
       setDrivers(d);
+      setEntries(e);
       setLoading(false);
     })();
   }, []);
@@ -34,10 +36,13 @@ export default function LogPage() {
       <DailyLogForm
         vehicles={vehicles}
         drivers={drivers}
+        entries={entries}
         onVehicleCreated={(v) => setVehicles((prev) => [...prev, v])}
         onDriverCreated={(d) => setDrivers((prev) => [...prev, d])}
-        onEntryCreated={() => {
-          /* form shows its own success state; entries list refreshes on its own page */
+        onEntryCreated={(entry) => {
+          // Keeps vehicle/driver pairing suggestions current for the next
+          // entry in this session, without a full page reload.
+          setEntries((prev) => [...prev, entry]);
         }}
       />
     </div>
