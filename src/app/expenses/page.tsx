@@ -7,6 +7,7 @@ import EditGarageExpenseModal from "@/components/EditGarageExpenseModal";
 import GarageExpenseAuditTrailModal from "@/components/GarageExpenseAuditTrailModal";
 import { useCurrentUser } from "@/lib/auth";
 import { listGarageExpenses, listGarages, listVehicles, seedLocalSampleData, setGarageExpensePaidStatus } from "@/lib/store";
+import { EXPENSE_CATEGORIES } from "@/lib/maintenance";
 import { formatDate, formatInr } from "@/lib/utils";
 import type { Garage, GarageExpense, Vehicle } from "@/lib/types";
 
@@ -18,6 +19,7 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(true);
 
   const [vehicleFilter, setVehicleFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [paidFilter, setPaidFilter] = useState<"all" | "paid" | "unpaid">("all");
   const [search, setSearch] = useState("");
   const [editingExpense, setEditingExpense] = useState<GarageExpense | null>(null);
@@ -55,17 +57,19 @@ export default function ExpensesPage() {
     const q = search.trim().toLowerCase();
     return expenses
       .filter((e) => vehicleFilter === "all" || e.vehicle_id === vehicleFilter)
+      .filter((e) => categoryFilter === "all" || e.category === categoryFilter)
       .filter((e) => {
         if (!q) return true;
         const garageName = garageMap.get(e.garage_id ?? "")?.name ?? "";
         return (
           e.work_description.toLowerCase().includes(q) ||
           (e.bill_no ?? "").toLowerCase().includes(q) ||
+          e.category.toLowerCase().includes(q) ||
           garageName.toLowerCase().includes(q)
         );
       })
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [expenses, vehicleFilter, search, garageMap]);
+  }, [expenses, vehicleFilter, categoryFilter, search, garageMap]);
 
   const filtered = useMemo(
     () =>
@@ -129,6 +133,14 @@ export default function ExpensesPage() {
                 </option>
               ))}
             </select>
+            <select className="input-field w-40" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+              <option value="all">All categories</option>
+              {EXPENSE_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
             <select
               className="input-field w-32"
               value={paidFilter}
@@ -178,6 +190,7 @@ export default function ExpensesPage() {
                   <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
                     <th className="px-3 py-2.5">Date</th>
                     <th className="px-3 py-2.5">Vehicle</th>
+                    <th className="px-3 py-2.5">Category</th>
                     <th className="px-3 py-2.5 text-right">Odometer</th>
                     <th className="px-3 py-2.5">Work / Replacement</th>
                     <th className="px-3 py-2.5">Garage</th>
@@ -193,6 +206,9 @@ export default function ExpensesPage() {
                       <td className="px-3 py-2.5 whitespace-nowrap text-slate-500 dark:text-slate-400">{formatDate(expense.date)}</td>
                       <td className="px-3 py-2.5 font-medium text-slate-800 dark:text-slate-100">
                         {vehicleMap.get(expense.vehicle_id)?.vehicle_no ?? "—"}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="badge badge-neutral whitespace-nowrap">{expense.category}</span>
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 dark:text-slate-400">
                         {expense.odometer_reading != null ? expense.odometer_reading.toLocaleString("en-IN") : "—"}
@@ -304,6 +320,7 @@ function ExpenseCard({
         <p className="text-sm font-semibold tabular-nums text-slate-900 dark:text-white">{formatInr(expense.amount)}</p>
       </div>
 
+      <span className="badge badge-neutral mt-2 w-fit">{expense.category}</span>
       <p className="mt-2 text-sm text-slate-700 dark:text-slate-200">{expense.work_description}</p>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">

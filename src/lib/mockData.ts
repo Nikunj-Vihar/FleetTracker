@@ -153,6 +153,7 @@ export function buildSampleGarageExpenses(vehicles: Vehicle[], garages: Garage[]
   const byGarageName = new Map(garages.map((g) => [g.name, g]));
   const v1 = byNo.get("4417")!;
   const v2 = byNo.get("8256")!;
+  const v3 = byNo.get("6039")!;
   const metro = byGarageName.get("Metro Tyres")!;
 
   const now = "2026-06-11T09:00:00.000Z";
@@ -167,7 +168,7 @@ export function buildSampleGarageExpenses(vehicles: Vehicle[], garages: Garage[]
       garage_id: metro.id,
       bill_no: "MT-2210 / OS-88",
       amount: 12500,
-      category: "Garage/Maintenance",
+      category: "Tyres",
       is_paid: true,
       paid_date: "2026-06-03",
       notes: "Combined bill across two garages on the same date — paper ledger recorded one total for both jobs.",
@@ -184,13 +185,52 @@ export function buildSampleGarageExpenses(vehicles: Vehicle[], garages: Garage[]
       garage_id: metro.id,
       bill_no: "MT-2355",
       amount: 15800,
-      category: "Garage/Maintenance",
+      category: "Tyres",
       is_paid: false,
       paid_date: null,
       notes: null,
       created_by: null,
       created_at: now,
       updated_at: now,
+    },
+    // Deliberately old/far-below-current-odometer so the Maintenance Due
+    // panel and Log Trip form have a real OVERDUE example to demonstrate —
+    // km-based, so it stays overdue regardless of what "today" is.
+    {
+      id: "gex-3-1",
+      date: "2024-01-15",
+      vehicle_id: v3.id,
+      odometer_reading: 240000,
+      work_description: "Brake pads and shoes replaced, all wheels",
+      garage_id: metro.id,
+      bill_no: "MT-1904",
+      amount: 9200,
+      category: "Brakes",
+      is_paid: true,
+      paid_date: "2024-01-15",
+      notes: null,
+      created_by: null,
+      created_at: "2024-01-15T09:00:00.000Z",
+      updated_at: "2024-01-15T09:00:00.000Z",
+    },
+    // Time-based example — Battery has no km threshold, only a months one,
+    // so this demonstrates the calendar-driven half of the alert logic.
+    {
+      id: "gex-2-2",
+      date: "2023-06-01",
+      vehicle_id: v2.id,
+      odometer_reading: 130000,
+      work_description: "Battery replaced",
+      garage_id: metro.id,
+      bill_no: "MT-1522",
+      amount: 7400,
+      category: "Battery",
+      is_paid: true,
+      paid_date: "2023-06-01",
+      notes: null,
+      created_by: null,
+      created_at: "2023-06-01T09:00:00.000Z",
+      updated_at: "2023-06-01T09:00:00.000Z",
     },
   ];
 }

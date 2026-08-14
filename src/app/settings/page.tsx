@@ -12,12 +12,17 @@ import {
   useCurrentUser,
 } from "@/lib/auth";
 import { clearLocalData, getSettings, seedLocalSampleData, updateSettings } from "@/lib/store";
+import { ALERTABLE_CATEGORIES, DEFAULT_MAINTENANCE_INTERVALS } from "@/lib/maintenance";
 import type { Settings } from "@/lib/types";
 
 export default function SettingsPage() {
   const router = useRouter();
   const { user } = useCurrentUser();
-  const [settings, setSettings] = useState<Settings>({ fuel_rate_inr: 95.5, anomaly_threshold_pct: 8 });
+  const [settings, setSettings] = useState<Settings>({
+    fuel_rate_inr: 95.5,
+    anomaly_threshold_pct: 8,
+    maintenance_intervals: DEFAULT_MAINTENANCE_INTERVALS,
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -154,6 +159,63 @@ export default function SettingsPage() {
           <p className="mt-1 text-xs text-slate-400">
             Entries whose average km/l deviates more than this from baseline are flagged. Default: 8%.
           </p>
+        </div>
+
+        <div>
+          <label className="label-text">Maintenance Intervals</label>
+          <p className="mb-2 text-xs text-slate-400">
+            How often each category is expected to need service — a truck gets flagged &ldquo;due soon&rdquo; once it
+            passes whichever threshold (distance or time) it hits first. Leave a field blank to skip that check for a
+            category.
+          </p>
+          <div className="space-y-2">
+            {ALERTABLE_CATEGORIES.map((category) => {
+              const interval = settings.maintenance_intervals[category] ?? { km: null, months: null };
+              return (
+                <div key={category} className="grid grid-cols-3 items-center gap-2 rounded-lg bg-slate-50 p-2.5 dark:bg-slate-800/50">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{category}</span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min={0}
+                      className="input-field"
+                      value={interval.km ?? ""}
+                      placeholder="—"
+                      onChange={(e) =>
+                        setSettings((s) => ({
+                          ...s,
+                          maintenance_intervals: {
+                            ...s.maintenance_intervals,
+                            [category]: { ...interval, km: e.target.value === "" ? null : Number(e.target.value) },
+                          },
+                        }))
+                      }
+                    />
+                    <span className="shrink-0 text-xs text-slate-400">km</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min={0}
+                      className="input-field"
+                      value={interval.months ?? ""}
+                      placeholder="—"
+                      onChange={(e) =>
+                        setSettings((s) => ({
+                          ...s,
+                          maintenance_intervals: {
+                            ...s.maintenance_intervals,
+                            [category]: { ...interval, months: e.target.value === "" ? null : Number(e.target.value) },
+                          },
+                        }))
+                      }
+                    />
+                    <span className="shrink-0 text-xs text-slate-400">months</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {!isSupabaseConfigured && (

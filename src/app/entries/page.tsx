@@ -6,6 +6,7 @@ import CsvExportButton from "@/components/CsvExportButton";
 import AuditTrailModal from "@/components/AuditTrailModal";
 import EditEntryModal from "@/components/EditEntryModal";
 import { getSettings, listDrivers, listEntries, listVehicles, seedLocalSampleData } from "@/lib/store";
+import { DEFAULT_MAINTENANCE_INTERVALS } from "@/lib/maintenance";
 import { formatDate } from "@/lib/utils";
 import type { Driver, FuelEntry, Settings, Vehicle } from "@/lib/types";
 
@@ -13,7 +14,11 @@ export default function EntriesPage() {
   const [entries, setEntries] = useState<FuelEntry[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [settings, setSettings] = useState<Settings>({ fuel_rate_inr: 95.5, anomaly_threshold_pct: 8 });
+  const [settings, setSettings] = useState<Settings>({
+    fuel_rate_inr: 95.5,
+    anomaly_threshold_pct: 8,
+    maintenance_intervals: DEFAULT_MAINTENANCE_INTERVALS,
+  });
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");

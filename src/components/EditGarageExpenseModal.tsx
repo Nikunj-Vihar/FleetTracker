@@ -6,7 +6,12 @@ import SearchableSelect from "./SearchableSelect";
 import { useCurrentUser } from "@/lib/auth";
 import { correctGarageExpense, ValidationError } from "@/lib/store";
 import { validateGarageExpense } from "@/lib/validation";
+import { EXPENSE_CATEGORIES } from "@/lib/maintenance";
 import type { Garage, GarageExpense, Vehicle } from "@/lib/types";
+
+function isKnownCategory(value: string): boolean {
+  return (EXPENSE_CATEGORIES as readonly string[]).includes(value);
+}
 
 interface EditGarageExpenseModalProps {
   expense: GarageExpense;
@@ -34,12 +39,16 @@ export default function EditGarageExpenseModal({
   const [garageId, setGarageId] = useState<string | null>(expense.garage_id);
   const [billNo, setBillNo] = useState(expense.bill_no ?? "");
   const [amount, setAmount] = useState(String(expense.amount));
+  const [category, setCategory] = useState(isKnownCategory(expense.category) ? expense.category : "Other");
+  const [customCategory, setCustomCategory] = useState(isKnownCategory(expense.category) ? "" : expense.category);
   const [isPaid, setIsPaid] = useState(expense.is_paid);
   const [paidDate, setPaidDate] = useState(expense.paid_date ?? "");
   const [reason, setReason] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const resolvedCategory = category === "Other" ? customCategory.trim() || "Other" : category;
 
   const issues = validateGarageExpense({
     date,
@@ -49,6 +58,7 @@ export default function EditGarageExpenseModal({
     garage_id: garageId,
     bill_no: billNo || null,
     amount: Number(amount),
+    category: resolvedCategory,
   });
   const errorIssues = issues.filter((i) => i.severity === "ERROR");
 
@@ -73,6 +83,7 @@ export default function EditGarageExpenseModal({
           garage_id: garageId,
           bill_no: billNo || null,
           amount: Number(amount),
+          category: resolvedCategory,
           is_paid: isPaid,
           paid_date: isPaid ? paidDate || null : null,
         },
@@ -125,6 +136,27 @@ export default function EditGarageExpenseModal({
               <label className="label-text">Type of Work / Replacement</label>
               <input className="input-field" value={workDescription} onChange={(e) => setWorkDescription(e.target.value)} />
             </div>
+            <div>
+              <label className="label-text">Category</label>
+              <select className="input-field" value={category} onChange={(e) => setCategory(e.target.value)}>
+                {EXPENSE_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {category === "Other" && (
+              <div>
+                <label className="label-text">Specify category</label>
+                <input
+                  className="input-field"
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  placeholder="e.g. AC repair"
+                />
+              </div>
+            )}
             <div>
               <label className="label-text">Bill No.</label>
               <input className="input-field" value={billNo} onChange={(e) => setBillNo(e.target.value)} />

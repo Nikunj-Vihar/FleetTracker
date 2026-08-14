@@ -6,6 +6,7 @@
 
 import { getSupabaseClient, isSupabaseConfigured } from "./supabase";
 import { DEFAULT_EXPENSE_CATEGORY, evaluateEntry, validateGarageExpense } from "./validation";
+import { DEFAULT_MAINTENANCE_INTERVALS } from "./maintenance";
 import type {
   AuditLogRecord,
   Driver,
@@ -18,6 +19,7 @@ import type {
   GarageExpenseAuditLogRecord,
   GarageExpenseInput,
   GarageInput,
+  MaintenanceIntervals,
   Settings,
   ValidationIssue,
   Vehicle,
@@ -55,7 +57,11 @@ const LS_KEYS = {
   garageExpenseAudit: "fleettracker.garageExpenseAudit",
 };
 
-const DEFAULT_SETTINGS: Settings = { fuel_rate_inr: 95.5, anomaly_threshold_pct: 8.0 };
+const DEFAULT_SETTINGS: Settings = {
+  fuel_rate_inr: 95.5,
+  anomaly_threshold_pct: 8.0,
+  maintenance_intervals: DEFAULT_MAINTENANCE_INTERVALS,
+};
 
 function lsGet<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -553,9 +559,17 @@ export async function getSettings(): Promise<Settings> {
     return {
       fuel_rate_inr: Number(map.get("fuel_rate_inr") ?? DEFAULT_SETTINGS.fuel_rate_inr),
       anomaly_threshold_pct: Number(map.get("anomaly_threshold_pct") ?? DEFAULT_SETTINGS.anomaly_threshold_pct),
+      // Merged rather than replaced outright: a category added to the
+      // defaults after an org already saved custom intervals should still
+      // show up for them instead of silently disappearing.
+      maintenance_intervals: {
+        ...DEFAULT_MAINTENANCE_INTERVALS,
+        ...((map.get("maintenance_intervals") as MaintenanceIntervals | undefined) ?? {}),
+      },
     };
   }
-  return lsGet<Settings>(LS_KEYS.settings, DEFAULT_SETTINGS);
+  const local = lsGet<Settings>(LS_KEYS.settings, DEFAULT_SETTINGS);
+  return { ...local, maintenance_intervals: { ...DEFAULT_MAINTENANCE_INTERVALS, ...local.maintenance_intervals } };
 }
 
 export async function updateSettings(changes: Partial<Settings>): Promise<Settings> {

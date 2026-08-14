@@ -5,16 +5,23 @@ import { Loader2 } from "lucide-react";
 import FleetSummaryCards from "@/components/FleetSummaryCards";
 import BaselineTrendChart from "@/components/BaselineTrendChart";
 import FlaggedAlertsList from "@/components/FlaggedAlertsList";
-import { getSettings, listDrivers, listEntries, listVehicles, seedLocalSampleData } from "@/lib/store";
+import MaintenanceAlertsList from "@/components/MaintenanceAlertsList";
+import { getSettings, listDrivers, listEntries, listGarageExpenses, listVehicles, seedLocalSampleData } from "@/lib/store";
 import { buildDriverTrend, buildVehicleTrend } from "@/lib/validation";
+import { computeMaintenanceAlerts, DEFAULT_MAINTENANCE_INTERVALS } from "@/lib/maintenance";
 import { cn } from "@/lib/utils";
-import type { Driver, FuelEntry, Settings, Vehicle } from "@/lib/types";
+import type { Driver, FuelEntry, GarageExpense, Settings, Vehicle } from "@/lib/types";
 
 export default function DashboardPage() {
   const [entries, setEntries] = useState<FuelEntry[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [settings, setSettings] = useState<Settings>({ fuel_rate_inr: 95.5, anomaly_threshold_pct: 8 });
+  const [garageExpenses, setGarageExpenses] = useState<GarageExpense[]>([]);
+  const [settings, setSettings] = useState<Settings>({
+    fuel_rate_inr: 95.5,
+    anomaly_threshold_pct: 8,
+    maintenance_intervals: DEFAULT_MAINTENANCE_INTERVALS,
+  });
   const [loading, setLoading] = useState(true);
 
   const [trendMode, setTrendMode] = useState<"vehicle" | "driver">("vehicle");
@@ -23,15 +30,27 @@ export default function DashboardPage() {
   useEffect(() => {
     (async () => {
       await seedLocalSampleData();
-      const [e, v, d, s] = await Promise.all([listEntries(), listVehicles(), listDrivers(), getSettings()]);
+      const [e, v, d, ge, s] = await Promise.all([
+        listEntries(),
+        listVehicles(),
+        listDrivers(),
+        listGarageExpenses(),
+        getSettings(),
+      ]);
       setEntries(e);
       setVehicles(v);
       setDrivers(d);
+      setGarageExpenses(ge);
       setSettings(s);
       setSelectedId(v[0]?.id ?? null);
       setLoading(false);
     })();
   }, []);
+
+  const maintenanceAlerts = useMemo(
+    () => computeMaintenanceAlerts(vehicles, garageExpenses, entries, settings.maintenance_intervals),
+    [vehicles, garageExpenses, entries, settings.maintenance_intervals]
+  );
 
   useEffect(() => {
     if (trendMode === "vehicle" && vehicles.length > 0 && !vehicles.some((v) => v.id === selectedId)) {
@@ -123,6 +142,11 @@ export default function DashboardPage() {
           <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Flagged Entries</h2>
           <FlaggedAlertsList entries={entries} vehicles={vehicles} drivers={drivers} limit={8} />
         </div>
+      </div>
+
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Maintenance Due</h2>
+        <MaintenanceAlertsList alerts={maintenanceAlerts} vehicles={vehicles} />
       </div>
     </div>
   );

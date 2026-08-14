@@ -53,9 +53,20 @@ export interface AuditLogRecord {
   created_at: string;
 }
 
+// One entry per category with an alertable service interval — either can
+// be null to disable that half of the check (e.g. tyres wear by distance
+// only, batteries degrade on a calendar regardless of distance driven).
+export interface MaintenanceInterval {
+  km: number | null;
+  months: number | null;
+}
+
+export type MaintenanceIntervals = Record<string, MaintenanceInterval>;
+
 export interface Settings {
   fuel_rate_inr: number;
   anomaly_threshold_pct: number;
+  maintenance_intervals: MaintenanceIntervals;
 }
 
 // --- Garage / maintenance expenses --------------------------------------
@@ -143,7 +154,7 @@ export interface GarageExpenseInput {
   garage_id?: string | null;
   bill_no?: string | null;
   amount: number;
-  category?: string;
+  category: string;
   is_paid?: boolean;
   paid_date?: string | null;
   notes?: string | null;

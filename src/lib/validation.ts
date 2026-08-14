@@ -21,7 +21,9 @@ import type {
   Vehicle,
 } from "./types";
 
-export const DEFAULT_EXPENSE_CATEGORY = "Garage/Maintenance";
+// Fallback only reachable via direct API use — the form always requires an
+// explicit category pick from src/lib/maintenance.ts's fixed list.
+export const DEFAULT_EXPENSE_CATEGORY = "Other";
 
 // A typical mechanical/digital odometer on a fleet truck rolls over at this
 // value. Only relevant for the rare, explicit odometer-rollover override.
@@ -384,6 +386,14 @@ export function validateGarageExpense(input: GarageExpenseInput): ValidationIssu
       severity: "ERROR",
       code: "REQUIRED",
       message: "A description of the work done is required.",
+    });
+  }
+  if (!input.category?.trim()) {
+    issues.push({
+      field: "category",
+      severity: "ERROR",
+      code: "REQUIRED",
+      message: "Please select a category for this expense.",
     });
   }
   if (input.amount == null || Number.isNaN(input.amount) || input.amount <= 0) {

@@ -3,22 +3,24 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import DailyLogForm from "@/components/DailyLogForm";
-import { listDrivers, listEntries, listVehicles, seedLocalSampleData } from "@/lib/store";
-import type { Driver, FuelEntry, Vehicle } from "@/lib/types";
+import { listDrivers, listEntries, listGarageExpenses, listVehicles, seedLocalSampleData } from "@/lib/store";
+import type { Driver, FuelEntry, GarageExpense, Vehicle } from "@/lib/types";
 
 export default function LogPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [entries, setEntries] = useState<FuelEntry[]>([]);
+  const [garageExpenses, setGarageExpenses] = useState<GarageExpense[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       await seedLocalSampleData();
-      const [v, d, e] = await Promise.all([listVehicles(), listDrivers(), listEntries()]);
+      const [v, d, e, ge] = await Promise.all([listVehicles(), listDrivers(), listEntries(), listGarageExpenses()]);
       setVehicles(v);
       setDrivers(d);
       setEntries(e);
+      setGarageExpenses(ge);
       setLoading(false);
     })();
   }, []);
@@ -37,6 +39,7 @@ export default function LogPage() {
         vehicles={vehicles}
         drivers={drivers}
         entries={entries}
+        garageExpenses={garageExpenses}
         onVehicleCreated={(v) => setVehicles((prev) => [...prev, v])}
         onDriverCreated={(d) => setDrivers((prev) => [...prev, d])}
         onEntryCreated={(entry) => {

@@ -7,6 +7,7 @@ import InlineAddModal from "./InlineAddModal";
 import { useCurrentUser } from "@/lib/auth";
 import { createGarageExpense, ValidationError } from "@/lib/store";
 import { validateGarageExpense } from "@/lib/validation";
+import { EXPENSE_CATEGORIES } from "@/lib/maintenance";
 import type { Garage, GarageExpense, Vehicle } from "@/lib/types";
 
 interface GarageExpenseFormProps {
@@ -37,6 +38,8 @@ export default function GarageExpenseForm({
   const [garageId, setGarageId] = useState<string | null>(null);
   const [billNo, setBillNo] = useState("");
   const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState("");
+  const [customCategory, setCustomCategory] = useState("");
   const [isPaid, setIsPaid] = useState(false);
   const [paidDate, setPaidDate] = useState(todayIso());
 
@@ -44,6 +47,8 @@ export default function GarageExpenseForm({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const resolvedCategory = category === "Other" ? customCategory.trim() || "Other" : category;
 
   const preview =
     vehicleId && workDescription && amount
@@ -55,6 +60,7 @@ export default function GarageExpenseForm({
           garage_id: garageId,
           bill_no: billNo || null,
           amount: Number(amount),
+          category: resolvedCategory,
         })
       : [];
   const errorIssues = preview.filter((i) => i.severity === "ERROR");
@@ -65,6 +71,8 @@ export default function GarageExpenseForm({
     setWorkDescription("");
     setBillNo("");
     setAmount("");
+    setCategory("");
+    setCustomCategory("");
     setIsPaid(false);
     setPaidDate(todayIso());
   }
@@ -90,6 +98,7 @@ export default function GarageExpenseForm({
           garage_id: garageId,
           bill_no: billNo || null,
           amount: Number(amount),
+          category: resolvedCategory,
           is_paid: isPaid,
           paid_date: isPaid ? paidDate : null,
         },
@@ -180,6 +189,36 @@ export default function GarageExpenseForm({
               required
             />
           </div>
+
+          <div className={category === "Other" ? "sm:col-span-1" : "sm:col-span-2"}>
+            <label className="label-text">Category *</label>
+            <select
+              className="input-field"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              required
+            >
+              <option value="" disabled>
+                Select category
+              </option>
+              {EXPENSE_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+          {category === "Other" && (
+            <div>
+              <label className="label-text">Specify category</label>
+              <input
+                className="input-field"
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+                placeholder="e.g. AC repair"
+              />
+            </div>
+          )}
 
           <div>
             <label className="label-text">Bill No.</label>

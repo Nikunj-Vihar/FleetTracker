@@ -1,20 +1,22 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Fuel, Gauge, Loader2, MapPin, Route, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Fuel, Gauge, Loader2, MapPin, Route, Sparkles, Wrench } from "lucide-react";
 import SearchableSelect from "./SearchableSelect";
 import InlineAddModal from "./InlineAddModal";
 import { useCurrentUser } from "@/lib/auth";
 import { createEntry, getVehicleEntryContext, getSettings, ValidationError } from "@/lib/store";
 import { evaluateEntry } from "@/lib/validation";
 import { rankDriversForVehicle, rankVehiclesForDriver, reorderByRank } from "@/lib/pairing";
-import type { Driver, EntryEvaluation, FuelEntry, Vehicle } from "@/lib/types";
+import { computeMaintenanceAlerts, DEFAULT_MAINTENANCE_INTERVALS } from "@/lib/maintenance";
+import type { Driver, EntryEvaluation, FuelEntry, GarageExpense, MaintenanceIntervals, Vehicle } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface DailyLogFormProps {
   vehicles: Vehicle[];
   drivers: Driver[];
   entries: FuelEntry[];
+  garageExpenses: GarageExpense[];
   onVehicleCreated: (vehicle: Vehicle) => void;
   onDriverCreated: (driver: Driver) => void;
   onEntryCreated: (entry: FuelEntry) => void;
@@ -36,6 +38,7 @@ export default function DailyLogForm({
   vehicles,
   drivers,
   entries,
+  garageExpenses,
   onVehicleCreated,
   onDriverCreated,
   onEntryCreated,
@@ -63,6 +66,7 @@ export default function DailyLogForm({
     priorEntries: FuelEntry[];
   } | null>(null);
   const [thresholdPct, setThresholdPct] = useState(8);
+  const [maintenanceIntervals, setMaintenanceIntervals] = useState<MaintenanceIntervals>(DEFAULT_MAINTENANCE_INTERVALS);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -94,6 +98,14 @@ export default function DailyLogForm({
     [vehicles, rankedVehicles]
   );
 
+  // Surfaces at the moment a truck is about to be sent out on a trip —
+  // catching maintenance that's due before it becomes a problem on the
+  // road, rather than only ever looking back at spend after the fact.
+  const vehicleMaintenanceAlerts = useMemo(() => {
+    if (!vehicleId || !selectedVehicle) return [];
+    return computeMaintenanceAlerts([selectedVehicle], garageExpenses, entries, maintenanceIntervals);
+  }, [vehicleId, selectedVehicle, garageExpenses, entries, maintenanceIntervals]);
+
   // Auto-fill the driver with this vehicle's most frequent past driver,
   // but only when the driver field is empty or still holds a previous
   // auto-fill — a manual pick is never overwritten.
@@ -120,7 +132,10 @@ export default function DailyLogForm({
   }, [rankedVehicles]);
 
   useEffect(() => {
-    getSettings().then((s) => setThresholdPct(s.anomaly_threshold_pct));
+    getSettings().then((s) => {
+      setThresholdPct(s.anomaly_threshold_pct);
+      setMaintenanceIntervals(s.maintenance_intervals);
+    });
   }, []);
 
   useEffect(() => {
@@ -407,6 +422,21 @@ export default function DailyLogForm({
             </span>
           </div>
         </div>
+
+        {vehicleMaintenanceAlerts.length > 0 && (
+          <div className="space-y-1.5 rounded-lg bg-amber-50 p-3 dark:bg-amber-500/10">
+            {vehicleMaintenanceAlerts.map((alert, idx) => (
+              <p key={idx} className="flex items-start gap-1.5 text-xs font-medium text-amber-800 dark:text-amber-300">
+                <Wrench size={14} className="mt-0.5 shrink-0" />
+                {alert.category} {alert.status === "OVERDUE" ? "is overdue" : "is due soon"} for this vehicle
+                {alert.kmSinceService != null && alert.kmThreshold != null
+                  ? ` — ${alert.kmSinceService.toLocaleString("en-IN")} km since last service (threshold ${alert.kmThreshold.toLocaleString("en-IN")} km)`
+                  : ""}
+                . Consider completing it before this trip.
+              </p>
+            ))}
+          </div>
+        )}
 
         {showRolloverOption && (
           <label className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
