@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Fuel, Loader2, LogIn, Truck } from "lucide-react";
 import { signInWithPassword } from "@/lib/auth";
+import PasswordInput from "@/components/PasswordInput";
 
 function LoginForm() {
   const router = useRouter();
@@ -56,12 +57,10 @@ function LoginForm() {
           </div>
           <div>
             <label className="label-text" htmlFor="password">Password</label>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
               required
               autoComplete="current-password"
-              className="input-field"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"

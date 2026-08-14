@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, Truck, UserPlus } from "lucide-react";
 import { signUpWithPassword } from "@/lib/auth";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -93,13 +94,11 @@ export default function SignupPage() {
           </div>
           <div>
             <label className="label-text" htmlFor="password">Password</label>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
               required
               minLength={6}
               autoComplete="new-password"
-              className="input-field"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
