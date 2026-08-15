@@ -1,26 +1,31 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Gauge, Loader2, Plus, Route, Truck } from "lucide-react";
+import { Gauge, History, Loader2, Pencil, Plus, Route, Trash2, Truck } from "lucide-react";
 import InlineAddModal from "@/components/InlineAddModal";
-import { listEntries, listVehicles, seedLocalSampleData, updateVehicle } from "@/lib/store";
+import EditVehicleModal from "@/components/EditVehicleModal";
+import VehicleAuditTrailModal from "@/components/VehicleAuditTrailModal";
+import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
+import { useCurrentUser } from "@/lib/auth";
+import { deleteVehicle, listEntries, listVehicles, seedLocalSampleData } from "@/lib/store";
 import { computeVehicleBaseline } from "@/lib/validation";
 import type { FuelEntry, Vehicle } from "@/lib/types";
 
 export default function VehiclesPage() {
+  const { user } = useCurrentUser();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [entries, setEntries] = useState<FuelEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<{ expected_avg: string; tank_capacity: string }>({ expected_avg: "", tank_capacity: "" });
-  const [saving, setSaving] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+  const [auditVehicle, setAuditVehicle] = useState<Vehicle | null>(null);
+  const [deletingVehicle, setDeletingVehicle] = useState<Vehicle | null>(null);
 
   useEffect(() => {
     (async () => {
       await seedLocalSampleData();
       const [v, e] = await Promise.all([listVehicles(), listEntries()]);
-      setVehicles(v);
+      setVehicles(v.filter((x) => !x.deleted_at));
       setEntries(e);
       setLoading(false);
     })();
@@ -35,25 +40,6 @@ export default function VehiclesPage() {
     }
     return map;
   }, [entries]);
-
-  function startEdit(v: Vehicle) {
-    setEditingId(v.id);
-    setDraft({ expected_avg: v.expected_avg != null ? String(v.expected_avg) : "", tank_capacity: String(v.tank_capacity) });
-  }
-
-  async function saveEdit(id: string) {
-    setSaving(true);
-    try {
-      const updated = await updateVehicle(id, {
-        expected_avg: draft.expected_avg ? Number(draft.expected_avg) : null,
-        tank_capacity: Number(draft.tank_capacity) || 300,
-      });
-      setVehicles((prev) => prev.map((v) => (v.id === id ? updated : v)));
-      setEditingId(null);
-    } finally {
-      setSaving(false);
-    }
-  }
 
   if (loading) {
     return (
@@ -81,7 +67,6 @@ export default function VehiclesPage() {
           const trailingBaseline = computeVehicleBaseline(v, vehicleEntries);
           const totalKms = vehicleEntries.reduce((sum, e) => sum + e.total_kms, 0);
           const flaggedCount = vehicleEntries.filter((e) => e.is_anomalous).length;
-          const isEditing = editingId === v.id;
 
           return (
             <div key={v.id} className="glass-panel p-4">
@@ -105,48 +90,42 @@ export default function VehiclesPage() {
                 <p className="flex items-center gap-1"><Gauge size={12} /> {vehicleEntries.length} entries</p>
               </div>
 
-              {isEditing ? (
-                <div className="space-y-2 rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
-                  <div>
-                    <label className="label-text">Expected Avg (km/l)</label>
-                    <input
-                      className="input-field"
-                      type="number"
-                      step="0.1"
-                      value={draft.expected_avg}
-                      onChange={(e) => setDraft((d) => ({ ...d, expected_avg: e.target.value }))}
-                      placeholder="Auto from entries"
-                    />
-                  </div>
-                  <div>
-                    <label className="label-text">Tank Capacity (L)</label>
-                    <input
-                      className="input-field"
-                      type="number"
-                      value={draft.tank_capacity}
-                      onChange={(e) => setDraft((d) => ({ ...d, tank_capacity: e.target.value }))}
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 pt-1">
-                    <button type="button" className="btn-secondary" onClick={() => setEditingId(null)}>Cancel</button>
-                    <button type="button" className="btn-primary" disabled={saving} onClick={() => saveEdit(v.id)}>Save</button>
-                  </div>
+              <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/50">
+                <div>
+                  <p className="text-slate-500 dark:text-slate-400">
+                    Baseline: <span className="font-semibold text-slate-800 dark:text-slate-100">
+                      {trailingBaseline != null ? `${trailingBaseline} km/l` : "Not yet established"}
+                    </span>
+                  </p>
+                  <p className="text-xs text-slate-400">Tank: {v.tank_capacity} L</p>
                 </div>
-              ) : (
-                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/50">
-                  <div>
-                    <p className="text-slate-500 dark:text-slate-400">
-                      Baseline: <span className="font-semibold text-slate-800 dark:text-slate-100">
-                        {trailingBaseline != null ? `${trailingBaseline} km/l` : "Not yet established"}
-                      </span>
-                    </p>
-                    <p className="text-xs text-slate-400">Tank: {v.tank_capacity} L</p>
-                  </div>
-                  <button type="button" onClick={() => startEdit(v)} className="text-xs font-medium text-brand-600 hover:underline">
-                    Edit
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setAuditVehicle(v)}
+                    className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700"
+                    title="Audit trail"
+                  >
+                    <History size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingVehicle(v)}
+                    className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700"
+                    title="Correct entry"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeletingVehicle(v)}
+                    className="rounded-full p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+                    title="Delete vehicle"
+                  >
+                    <Trash2 size={14} />
                   </button>
                 </div>
-              )}
+              </div>
             </div>
           );
         })}
@@ -159,6 +138,33 @@ export default function VehiclesPage() {
           onCreated={(record) => {
             setVehicles((prev) => [...prev, record as Vehicle]);
             setShowAdd(false);
+          }}
+        />
+      )}
+
+      {editingVehicle && (
+        <EditVehicleModal
+          vehicle={editingVehicle}
+          onClose={() => setEditingVehicle(null)}
+          onUpdated={(updated) => {
+            setVehicles((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
+            setEditingVehicle(null);
+          }}
+        />
+      )}
+
+      {auditVehicle && <VehicleAuditTrailModal vehicle={auditVehicle} onClose={() => setAuditVehicle(null)} />}
+
+      {deletingVehicle && (
+        <ConfirmDeleteModal
+          title="Delete Vehicle"
+          description={`This removes "${deletingVehicle.vehicle_no}" from active lists and dropdowns. Its trip and expense history is kept and still shown correctly — this can be undone from Settings → Recently Deleted.`}
+          confirmationLabel={`I understand — remove "${deletingVehicle.vehicle_no}" from active use.`}
+          onClose={() => setDeletingVehicle(null)}
+          onConfirm={async (reason) => {
+            await deleteVehicle(deletingVehicle.id, { deletedBy: user?.label ?? "Unknown", reason });
+            setVehicles((prev) => prev.filter((v) => v.id !== deletingVehicle.id));
+            setDeletingVehicle(null);
           }}
         />
       )}

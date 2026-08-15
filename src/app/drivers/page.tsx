@@ -1,24 +1,32 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Loader2, Phone, Plus, User } from "lucide-react";
+import { AlertTriangle, History, Loader2, Pencil, Phone, Plus, Trash2, User } from "lucide-react";
 import InlineAddModal from "@/components/InlineAddModal";
-import { listDrivers, listEntries, listVehicles, seedLocalSampleData } from "@/lib/store";
+import EditDriverModal from "@/components/EditDriverModal";
+import DriverAuditTrailModal from "@/components/DriverAuditTrailModal";
+import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
+import { useCurrentUser } from "@/lib/auth";
+import { deleteDriver, listDrivers, listEntries, listVehicles, seedLocalSampleData } from "@/lib/store";
 import { computeFleetAverage } from "@/lib/validation";
 import type { Driver, FuelEntry, Vehicle } from "@/lib/types";
 
 export default function DriversPage() {
+  const { user } = useCurrentUser();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [entries, setEntries] = useState<FuelEntry[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
+  const [auditDriver, setAuditDriver] = useState<Driver | null>(null);
+  const [deletingDriver, setDeletingDriver] = useState<Driver | null>(null);
 
   useEffect(() => {
     (async () => {
       await seedLocalSampleData();
       const [d, e, v] = await Promise.all([listDrivers(), listEntries(), listVehicles()]);
-      setDrivers(d);
+      setDrivers(d.filter((x) => !x.deleted_at));
       setEntries(e);
       setVehicles(v);
       setLoading(false);
@@ -70,7 +78,13 @@ export default function DriversPage() {
           {/* Card list — below md (also covers the 640-767px tablet range) */}
           <div className="space-y-2 md:hidden">
             {driverStats.map((stat) => (
-              <DriverCard key={stat.driver.id} {...stat} />
+              <DriverCard
+                key={stat.driver.id}
+                {...stat}
+                onEdit={() => setEditingDriver(stat.driver)}
+                onAudit={() => setAuditDriver(stat.driver)}
+                onDelete={() => setDeletingDriver(stat.driver)}
+              />
             ))}
           </div>
 
@@ -85,6 +99,7 @@ export default function DriversPage() {
                   <th className="px-3 py-2.5 text-right">Average km/l</th>
                   <th className="px-3 py-2.5 text-right">vs Fleet Avg</th>
                   <th className="px-3 py-2.5 text-right">Flagged</th>
+                  <th className="px-3 py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -127,6 +142,34 @@ export default function DriversPage() {
                         <span className="text-slate-300 dark:text-slate-600">0</span>
                       )}
                     </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setAuditDriver(driver)}
+                          className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                          title="Audit trail"
+                        >
+                          <History size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingDriver(driver)}
+                          className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                          title="Correct entry"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeletingDriver(driver)}
+                          className="rounded-full p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+                          title="Delete driver"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -145,6 +188,33 @@ export default function DriversPage() {
           }}
         />
       )}
+
+      {editingDriver && (
+        <EditDriverModal
+          driver={editingDriver}
+          onClose={() => setEditingDriver(null)}
+          onUpdated={(updated) => {
+            setDrivers((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+            setEditingDriver(null);
+          }}
+        />
+      )}
+
+      {auditDriver && <DriverAuditTrailModal driver={auditDriver} onClose={() => setAuditDriver(null)} />}
+
+      {deletingDriver && (
+        <ConfirmDeleteModal
+          title="Delete Driver"
+          description={`This removes "${deletingDriver.name}" from active lists and dropdowns. Their trip history is kept and still shown correctly — this can be undone from Settings → Recently Deleted.`}
+          confirmationLabel={`I understand — remove "${deletingDriver.name}" from active use.`}
+          onClose={() => setDeletingDriver(null)}
+          onConfirm={async (reason) => {
+            await deleteDriver(deletingDriver.id, { deletedBy: user?.label ?? "Unknown", reason });
+            setDrivers((prev) => prev.filter((d) => d.id !== deletingDriver.id));
+            setDeletingDriver(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -156,6 +226,9 @@ function DriverCard({
   vehicleNos,
   entryCount,
   deviationFromFleet,
+  onEdit,
+  onAudit,
+  onDelete,
 }: {
   driver: Driver;
   avg: number | null;
@@ -163,6 +236,9 @@ function DriverCard({
   vehicleNos: (string | undefined)[];
   entryCount: number;
   deviationFromFleet: number | null;
+  onEdit: () => void;
+  onAudit: () => void;
+  onDelete: () => void;
 }) {
   return (
     <div className="glass-panel p-3.5">
@@ -209,6 +285,22 @@ function DriverCard({
       <p className="mt-2 truncate text-xs text-slate-400">
         Vehicles: {vehicleNos.length ? vehicleNos.join(", ") : "—"}
       </p>
+
+      <div className="mt-3 flex justify-end gap-2">
+        <button type="button" onClick={onAudit} className="btn-secondary px-2.5 py-1.5 text-xs">
+          <History size={12} /> Audit
+        </button>
+        <button type="button" onClick={onEdit} className="btn-secondary px-2.5 py-1.5 text-xs">
+          <Pencil size={12} /> Correct
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
     </div>
   );
 }

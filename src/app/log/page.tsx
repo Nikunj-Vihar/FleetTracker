@@ -17,8 +17,11 @@ export default function LogPage() {
     (async () => {
       await seedLocalSampleData();
       const [v, d, e, ge] = await Promise.all([listVehicles(), listDrivers(), listEntries(), listGarageExpenses()]);
-      setVehicles(v);
-      setDrivers(d);
+      // Deleted vehicles/drivers shouldn't be selectable for a new trip —
+      // listVehicles()/listDrivers() return everything so history keeps
+      // displaying correctly elsewhere; this page only needs active ones.
+      setVehicles(v.filter((x) => !x.deleted_at));
+      setDrivers(d.filter((x) => !x.deleted_at));
       setEntries(e);
       setGarageExpenses(ge);
       setLoading(false);

@@ -30,6 +30,9 @@ export const sampleVehicles: Vehicle[] = [
     expected_avg: 7.8,
     tank_capacity: 100,
     created_at: "2026-04-25T05:00:00.000Z",
+    deleted_at: null,
+    deleted_by: null,
+    delete_reason: null,
   },
   {
     id: "veh-2",
@@ -39,6 +42,9 @@ export const sampleVehicles: Vehicle[] = [
     expected_avg: 8.75,
     tank_capacity: 150,
     created_at: "2026-04-25T05:00:00.000Z",
+    deleted_at: null,
+    deleted_by: null,
+    delete_reason: null,
   },
   {
     id: "veh-3",
@@ -48,13 +54,18 @@ export const sampleVehicles: Vehicle[] = [
     expected_avg: 7.8, // seeded from the fleet's general expectation — see note above
     tank_capacity: 200,
     created_at: "2026-04-25T05:00:00.000Z",
+    deleted_at: null,
+    deleted_by: null,
+    delete_reason: null,
   },
 ];
 
+const DRIVER_DEFAULTS = { deleted_at: null, deleted_by: null, delete_reason: null } as const;
+
 export const sampleDrivers: Driver[] = [
-  { id: "drv-suresh", name: "Suresh", phone: null, created_at: "2026-04-25T05:00:00.000Z" },
-  { id: "drv-naik", name: "R. Naik", phone: null, created_at: "2026-04-25T05:00:00.000Z" },
-  { id: "drv-manoj", name: "Manoj", phone: null, created_at: "2026-04-25T05:00:00.000Z" },
+  { id: "drv-suresh", name: "Suresh", phone: null, created_at: "2026-04-25T05:00:00.000Z", ...DRIVER_DEFAULTS },
+  { id: "drv-naik", name: "R. Naik", phone: null, created_at: "2026-04-25T05:00:00.000Z", ...DRIVER_DEFAULTS },
+  { id: "drv-manoj", name: "Manoj", phone: null, created_at: "2026-04-25T05:00:00.000Z", ...DRIVER_DEFAULTS },
 ];
 
 interface TripSeed {

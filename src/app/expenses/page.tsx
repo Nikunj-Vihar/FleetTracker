@@ -52,6 +52,10 @@ export default function ExpensesPage() {
 
   const vehicleMap = useMemo(() => new Map(vehicles.map((v) => [v.id, v])), [vehicles]);
   const garageMap = useMemo(() => new Map(garages.map((g) => [g.id, g])), [garages]);
+  // vehicles stays the full (incl. deleted) list so historical expenses and
+  // the filter dropdown keep showing a since-deleted vehicle's plate number
+  // correctly; only the create form should offer active ones as new choices.
+  const activeVehicles = useMemo(() => vehicles.filter((v) => !v.deleted_at), [vehicles]);
 
   const searchFiltered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -106,7 +110,7 @@ export default function ExpensesPage() {
       </div>
 
       <GarageExpenseForm
-        vehicles={vehicles}
+        vehicles={activeVehicles}
         garages={garages}
         onVehicleCreated={(v) => setVehicles((prev) => [...prev, v])}
         onGarageCreated={(g) => setGarages((prev) => [...prev, g])}

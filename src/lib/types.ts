@@ -10,12 +10,40 @@ export interface Vehicle {
   expected_avg: number | null; // Baseline km/l set at setup; null until established
   tank_capacity: number;
   created_at: string;
+  deleted_at: string | null;
+  deleted_by: string | null;
+  delete_reason: string | null;
 }
 
 export interface Driver {
   id: string;
   name: string;
   phone: string | null;
+  created_at: string;
+  deleted_at: string | null;
+  deleted_by: string | null;
+  delete_reason: string | null;
+}
+
+export interface VehicleAuditLogRecord {
+  id: string;
+  entry_id: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  changed_by: string | null;
+  reason: string | null;
+  created_at: string;
+}
+
+export interface DriverAuditLogRecord {
+  id: string;
+  entry_id: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  changed_by: string | null;
+  reason: string | null;
   created_at: string;
 }
 

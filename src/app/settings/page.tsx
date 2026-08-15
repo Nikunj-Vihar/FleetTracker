@@ -1,8 +1,20 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, CloudOff, Database, Loader2, RefreshCw, Save, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CloudOff,
+  Database,
+  Loader2,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  Trash2,
+  Truck,
+  User,
+} from "lucide-react";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import {
   confirmAccountDeletion,
@@ -11,9 +23,22 @@ import {
   setLocalOperatorName,
   useCurrentUser,
 } from "@/lib/auth";
-import { clearLocalData, getSettings, seedLocalSampleData, updateSettings } from "@/lib/store";
+import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
+import {
+  clearDeletedDriversLog,
+  clearDeletedVehiclesLog,
+  clearLocalData,
+  getSettings,
+  listDeletedDrivers,
+  listDeletedVehicles,
+  restoreDriver,
+  restoreVehicle,
+  seedLocalSampleData,
+  updateSettings,
+} from "@/lib/store";
 import { ALERTABLE_CATEGORIES, DEFAULT_MAINTENANCE_INTERVALS } from "@/lib/maintenance";
-import type { Settings } from "@/lib/types";
+import { formatDate } from "@/lib/utils";
+import type { Driver, Settings, Vehicle } from "@/lib/types";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -33,6 +58,59 @@ export default function SettingsPage() {
   const [deleteCode, setDeleteCode] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [sendingCode, setSendingCode] = useState(false);
+
+  const [deletedVehicles, setDeletedVehicles] = useState<Vehicle[]>([]);
+  const [deletedDrivers, setDeletedDrivers] = useState<Driver[]>([]);
+  const [loadingDeleted, setLoadingDeleted] = useState(true);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [showClearLog, setShowClearLog] = useState(false);
+
+  async function refreshDeleted() {
+    const [dv, dd] = await Promise.all([listDeletedVehicles(), listDeletedDrivers()]);
+    setDeletedVehicles(dv);
+    setDeletedDrivers(dd);
+    setLoadingDeleted(false);
+  }
+
+  async function handleRestoreVehicle(id: string) {
+    setRestoringId(id);
+    try {
+      await restoreVehicle(id, user?.label ?? "Unknown");
+      setDeletedVehicles((prev) => prev.filter((v) => v.id !== id));
+    } finally {
+      setRestoringId(null);
+    }
+  }
+
+  async function handleRestoreDriver(id: string) {
+    setRestoringId(id);
+    try {
+      await restoreDriver(id, user?.label ?? "Unknown");
+      setDeletedDrivers((prev) => prev.filter((d) => d.id !== id));
+    } finally {
+      setRestoringId(null);
+    }
+  }
+
+  const recentlyDeleted = useMemo(() => {
+    const vehicleRows = deletedVehicles.map((v) => ({
+      kind: "vehicle" as const,
+      id: v.id,
+      label: v.vehicle_no,
+      deletedAt: v.deleted_at as string,
+      deletedBy: v.deleted_by,
+      reason: v.delete_reason,
+    }));
+    const driverRows = deletedDrivers.map((d) => ({
+      kind: "driver" as const,
+      id: d.id,
+      label: d.name,
+      deletedAt: d.deleted_at as string,
+      deletedBy: d.deleted_by,
+      reason: d.delete_reason,
+    }));
+    return [...vehicleRows, ...driverRows].sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));
+  }, [deletedVehicles, deletedDrivers]);
 
   async function handleRequestDelete() {
     if (!user) return;
@@ -69,6 +147,8 @@ export default function SettingsPage() {
       setLoading(false);
     });
     setOperatorName(getLocalOperatorName());
+    refreshDeleted();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleSave(e: FormEvent) {
@@ -241,6 +321,62 @@ export default function SettingsPage() {
         )}
       </form>
 
+      <div className="glass-panel space-y-3 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Recently Deleted</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Deleted drivers and vehicles stay here, restorable, until you clear the log yourself — nothing is
+              purged automatically.
+            </p>
+          </div>
+          {recentlyDeleted.length > 0 && (
+            <button type="button" onClick={() => setShowClearLog(true)} className="btn-secondary text-red-600 dark:text-red-400">
+              <Trash2 size={14} /> Clear Log
+            </button>
+          )}
+        </div>
+
+        {loadingDeleted ? (
+          <div className="flex h-16 items-center justify-center text-slate-400">
+            <Loader2 className="animate-spin" size={18} />
+          </div>
+        ) : recentlyDeleted.length === 0 ? (
+          <p className="py-4 text-center text-sm text-slate-400">Nothing deleted yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {recentlyDeleted.map((row) => (
+              <div
+                key={`${row.kind}-${row.id}`}
+                className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/50"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400">
+                    {row.kind === "vehicle" ? <Truck size={14} /> : <User size={14} />}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{row.label}</p>
+                    <p className="truncate text-xs text-slate-400">
+                      Deleted {formatDate(row.deletedAt)} by {row.deletedBy ?? "Unknown"}
+                      {row.reason ? ` — ${row.reason}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={restoringId === row.id}
+                  onClick={() => (row.kind === "vehicle" ? handleRestoreVehicle(row.id) : handleRestoreDriver(row.id))}
+                  className="btn-secondary shrink-0 px-2.5 py-1.5 text-xs"
+                >
+                  {restoringId === row.id ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+                  Restore
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {!isSupabaseConfigured && (
         <div className="glass-panel space-y-3 p-5">
           <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Sample Data</h2>
@@ -310,6 +446,22 @@ export default function SettingsPage() {
             </p>
           )}
         </div>
+      )}
+
+      {showClearLog && (
+        <ConfirmDeleteModal
+          title="Clear Recently Deleted Log"
+          description={`This permanently deletes all ${recentlyDeleted.length} item(s) currently in the log. Any of them that still have trip entries or garage expenses will delete those too — this cannot be undone, and none of it is restorable afterward.`}
+          confirmationLabel="I understand this permanently deletes these records and any trip/expense history still attached to them."
+          confirmButtonLabel="Clear Log Permanently"
+          onClose={() => setShowClearLog(false)}
+          onConfirm={async () => {
+            await Promise.all([clearDeletedVehiclesLog(), clearDeletedDriversLog()]);
+            setDeletedVehicles([]);
+            setDeletedDrivers([]);
+            setShowClearLog(false);
+          }}
+        />
       )}
     </div>
   );
