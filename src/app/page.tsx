@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import FleetSummaryCards from "@/components/FleetSummaryCards";
-import FleetStatusBoard from "@/components/FleetStatusBoard";
+import FleetStatusTiles from "@/components/FleetStatusTiles";
+import FleetRoadVisual from "@/components/FleetRoadVisual";
 import BaselineTrendChart from "@/components/BaselineTrendChart";
 import FlaggedAlertsList from "@/components/FlaggedAlertsList";
 import MaintenanceAlertsList from "@/components/MaintenanceAlertsList";
@@ -103,14 +104,16 @@ export default function DashboardPage() {
         <p className="text-sm text-slate-500 dark:text-slate-400">Live overview of fuel usage, cost, and flagged entries.</p>
       </div>
 
-      <FleetStatusBoard
+      <FleetStatusTiles vehicles={activeVehicles} entries={entries} maintenanceAlerts={maintenanceAlerts} />
+
+      <FleetSummaryCards entries={entries} fuelRateInr={settings.fuel_rate_inr} />
+
+      <FleetRoadVisual
         vehicles={activeVehicles}
         entries={entries}
         drivers={drivers}
         maintenanceAlerts={maintenanceAlerts}
       />
-
-      <FleetSummaryCards entries={entries} fuelRateInr={settings.fuel_rate_inr} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-3 lg:col-span-2">
