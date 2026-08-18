@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import FleetSummaryCards from "@/components/FleetSummaryCards";
+import FleetStatusBoard from "@/components/FleetStatusBoard";
 import BaselineTrendChart from "@/components/BaselineTrendChart";
 import FlaggedAlertsList from "@/components/FlaggedAlertsList";
 import MaintenanceAlertsList from "@/components/MaintenanceAlertsList";
@@ -52,6 +53,10 @@ export default function DashboardPage() {
     [vehicles, garageExpenses, entries, settings.maintenance_intervals]
   );
 
+  // Status board reflects the fleet as it is today, so a soft-deleted
+  // vehicle (e.g. sold or retired) shouldn't still show up as "Idle".
+  const activeVehicles = useMemo(() => vehicles.filter((v) => !v.deleted_at), [vehicles]);
+
   useEffect(() => {
     if (trendMode === "vehicle" && vehicles.length > 0 && !vehicles.some((v) => v.id === selectedId)) {
       setSelectedId(vehicles[0].id);
@@ -97,6 +102,13 @@ export default function DashboardPage() {
         <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Fleet Dashboard</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">Live overview of fuel usage, cost, and flagged entries.</p>
       </div>
+
+      <FleetStatusBoard
+        vehicles={activeVehicles}
+        entries={entries}
+        drivers={drivers}
+        maintenanceAlerts={maintenanceAlerts}
+      />
 
       <FleetSummaryCards entries={entries} fuelRateInr={settings.fuel_rate_inr} />
 
