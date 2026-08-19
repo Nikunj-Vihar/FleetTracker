@@ -6,7 +6,7 @@ import SearchableSelect from "./SearchableSelect";
 import InlineAddModal from "./InlineAddModal";
 import { useCurrentUser } from "@/lib/auth";
 import { createEntry, getVehicleEntryContext, getSettings, ValidationError } from "@/lib/store";
-import { evaluateEntry } from "@/lib/validation";
+import { DEFAULT_GAP_TOLERANCE_KM, evaluateEntry } from "@/lib/validation";
 import { rankDriversForVehicle, rankVehiclesForDriver, reorderByRank } from "@/lib/pairing";
 import { computeMaintenanceAlerts, DEFAULT_MAINTENANCE_INTERVALS } from "@/lib/maintenance";
 import type { Driver, EntryEvaluation, FuelEntry, GarageExpense, MaintenanceIntervals, Vehicle } from "@/lib/types";
@@ -68,6 +68,7 @@ export default function DailyLogForm({
   } | null>(null);
   const [thresholdPct, setThresholdPct] = useState(8);
   const [maintenanceIntervals, setMaintenanceIntervals] = useState<MaintenanceIntervals>(DEFAULT_MAINTENANCE_INTERVALS);
+  const [gapToleranceKm, setGapToleranceKm] = useState(DEFAULT_GAP_TOLERANCE_KM);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -136,6 +137,7 @@ export default function DailyLogForm({
     getSettings().then((s) => {
       setThresholdPct(s.anomaly_threshold_pct);
       setMaintenanceIntervals(s.maintenance_intervals);
+      setGapToleranceKm(s.continuity_gap_tolerance_km);
     });
   }, []);
 
@@ -191,6 +193,7 @@ export default function DailyLogForm({
       anomalyThresholdPct: thresholdPct,
       odometerRollover,
       multipleFillUps,
+      defaultGapToleranceKm: gapToleranceKm,
     });
   }, [
     selectedVehicle,
@@ -201,6 +204,7 @@ export default function DailyLogForm({
     date,
     place,
     vehicleContext,
+    gapToleranceKm,
     thresholdPct,
     odometerRollover,
     multipleFillUps,

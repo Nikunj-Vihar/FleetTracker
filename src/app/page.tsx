@@ -9,8 +9,10 @@ import BaselineTrendChart from "@/components/BaselineTrendChart";
 import FlaggedAlertsList from "@/components/FlaggedAlertsList";
 import MaintenanceAlertsList from "@/components/MaintenanceAlertsList";
 import { getSettings, listDrivers, listEntries, listGarageExpenses, listVehicles, seedLocalSampleData } from "@/lib/store";
-import { buildDriverTrend, buildVehicleTrend } from "@/lib/validation";
+import { buildDriverTrend, buildVehicleTrend, DEFAULT_GAP_TOLERANCE_KM } from "@/lib/validation";
 import { computeMaintenanceAlerts, DEFAULT_MAINTENANCE_INTERVALS } from "@/lib/maintenance";
+import { computeUnloggedMileage } from "@/lib/unloggedMileage";
+import UnloggedMileageList from "@/components/UnloggedMileageList";
 import { cn } from "@/lib/utils";
 import type { Driver, FuelEntry, GarageExpense, Settings, Vehicle } from "@/lib/types";
 
@@ -23,6 +25,7 @@ export default function DashboardPage() {
     fuel_rate_inr: 95.5,
     anomaly_threshold_pct: 8,
     maintenance_intervals: DEFAULT_MAINTENANCE_INTERVALS,
+    continuity_gap_tolerance_km: DEFAULT_GAP_TOLERANCE_KM,
   });
   const [loading, setLoading] = useState(true);
 
@@ -57,6 +60,13 @@ export default function DashboardPage() {
   // Status board reflects the fleet as it is today, so a soft-deleted
   // vehicle (e.g. sold or retired) shouldn't still show up as "Idle".
   const activeVehicles = useMemo(() => vehicles.filter((v) => !v.deleted_at), [vehicles]);
+
+  const unloggedMileage = useMemo(() => {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    const sinceIso = startOfMonth.toISOString().slice(0, 10);
+    return computeUnloggedMileage(activeVehicles, entries, sinceIso);
+  }, [activeVehicles, entries]);
 
   useEffect(() => {
     if (trendMode === "vehicle" && vehicles.length > 0 && !vehicles.some((v) => v.id === selectedId)) {
@@ -155,13 +165,24 @@ export default function DashboardPage() {
 
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Flagged Entries</h2>
-          <FlaggedAlertsList entries={entries} vehicles={vehicles} drivers={drivers} limit={8} />
+          <FlaggedAlertsList
+            entries={entries}
+            vehicles={vehicles}
+            drivers={drivers}
+            defaultGapToleranceKm={settings.continuity_gap_tolerance_km}
+            limit={8}
+          />
         </div>
       </div>
 
       <div className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Maintenance Due</h2>
         <MaintenanceAlertsList alerts={maintenanceAlerts} vehicles={vehicles} />
+      </div>
+
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Unlogged Mileage This Month</h2>
+        <UnloggedMileageList summaries={unloggedMileage} />
       </div>
     </div>
   );

@@ -35,6 +35,27 @@ export const ODOMETER_ROLLOVER_THRESHOLD = 999999;
 // typo (an extra zero) still gets caught even with the box ticked.
 export const MULTI_FILLUP_MAX_MULTIPLIER = 4;
 
+// A generic starting point for the odometer-continuity tolerance, used only
+// until a vehicle has enough of its own history to learn a better one (see
+// computeVehicleGapTolerance below) — editable per org in Settings, same as
+// the anomaly threshold.
+export const DEFAULT_GAP_TOLERANCE_KM = 25;
+
+// How far past tolerance a gap has to be before it escalates from a quiet,
+// low-visibility note to a prominent warning. Keeps the check from being a
+// hard cliff where "tolerance + 1 km" looks exactly as alarming as
+// "tolerance + 500 km."
+export const CONTINUITY_ESCALATION_MULTIPLIER = 3;
+
+// The percentile of a vehicle's own historical (positive) gaps used as its
+// learned tolerance — high enough to cover its normal range of unlogged
+// short trips without being pulled up by one unusually large outlier gap.
+export const CONTINUITY_TOLERANCE_PERCENTILE = 0.9;
+
+// Below this many historical gap samples, there's not enough signal to
+// trust a learned percentile over the generic default.
+export const MIN_GAP_SAMPLES = 3;
+
 // Once a vehicle has this many real entries, its baseline starts blending
 // away from the client-provided "expected average" toward its own trailing
 // average. Fully replaced by FULL_TRAILING_ENTRIES. See CLAUDE.md §3.1 and
@@ -51,6 +72,12 @@ function round2(n: number): number {
 function average(nums: number[]): number | null {
   if (nums.length === 0) return null;
   return nums.reduce((sum, n) => sum + n, 0) / nums.length;
+}
+
+// Nearest-rank percentile over an already-ascending-sorted array.
+function percentileOf(sortedAsc: number[], p: number): number {
+  const idx = Math.min(sortedAsc.length - 1, Math.max(0, Math.ceil(p * sortedAsc.length) - 1));
+  return sortedAsc[idx];
 }
 
 // ---------------------------------------------------------------------
@@ -233,32 +260,123 @@ export function validateRequiredFields(input: FuelEntryInput): ValidationIssue[]
 // 3. Odometer continuity check — SOFT FLAG (CLAUDE.md §2)
 // ---------------------------------------------------------------------
 
+// Learns this vehicle's own typical "unlogged running between trips" size
+// from its history, blending away from the client-provided generic default
+// the same way computeVehicleBaseline blends km/l (CLAUDE.md §3.1) — a
+// city-delivery truck and a long-haul truck have very different normal gap
+// sizes, and there's no single flat number that's honest for both without
+// per-vehicle data.
+export function computeVehicleGapTolerance(
+  priorEntriesChronological: Pick<FuelEntry, "onward_reading" | "return_reading">[],
+  startingOdometer: number,
+  defaultToleranceKm: number
+): number {
+  const gaps: number[] = [];
+  let previousReturn = startingOdometer;
+  for (const entry of priorEntriesChronological) {
+    const gap = entry.onward_reading - previousReturn;
+    if (gap > 0) gaps.push(gap); // only forward gaps look like "an unlogged short trip happened"
+    previousReturn = entry.return_reading;
+  }
+
+  const n = priorEntriesChronological.length;
+  if (gaps.length < MIN_GAP_SAMPLES || n < BASELINE_BLEND_START_ENTRIES) return defaultToleranceKm;
+
+  gaps.sort((a, b) => a - b);
+  const learned = percentileOf(gaps, CONTINUITY_TOLERANCE_PERCENTILE);
+
+  if (n >= BASELINE_FULL_TRAILING_ENTRIES) return round2(learned);
+
+  const blendFactor =
+    (n - BASELINE_BLEND_START_ENTRIES) / (BASELINE_FULL_TRAILING_ENTRIES - BASELINE_BLEND_START_ENTRIES);
+  return round2(defaultToleranceKm * (1 - blendFactor) + learned * blendFactor);
+}
+
+// A negative gap (this trip's onward reading is LESS than the last logged
+// return) never fits the "unlogged short trip" story — that only ever
+// produces a forward gap — so it's never tolerated regardless of size; it's
+// a data problem (wrong vehicle, entries out of order, a typo).
+export function classifyGapSeverity(gapKms: number, toleranceKm: number): "NONE" | "INFO" | "WARNING" {
+  if (gapKms < 0) return "WARNING";
+  if (gapKms <= toleranceKm) return "NONE";
+  if (toleranceKm > 0 && gapKms <= toleranceKm * CONTINUITY_ESCALATION_MULTIPLIER) return "INFO";
+  return "WARNING";
+}
+
 export function checkContinuity(
   onwardReading: number,
-  previousReturnReading: number | null
+  previousReturnReading: number | null,
+  toleranceKm = 0
 ): ContinuityResult {
   if (previousReturnReading == null) {
     // First entry ever logged for this vehicle — nothing to compare against.
-    return { isBroken: false, expectedOnwardReading: null, gapKms: null };
+    return { isBroken: false, expectedOnwardReading: null, gapKms: null, severity: null, toleranceKm: null };
   }
 
-  const isBroken = onwardReading !== previousReturnReading;
+  const gap = round2(onwardReading - previousReturnReading);
+  const severity = classifyGapSeverity(gap, toleranceKm);
+  const isBroken = severity !== "NONE";
 
   return {
     isBroken,
     expectedOnwardReading: previousReturnReading,
-    gapKms: isBroken ? round2(onwardReading - previousReturnReading) : 0,
+    gapKms: isBroken ? gap : 0,
+    severity: isBroken ? severity : null,
+    toleranceKm,
   };
 }
 
 export function continuityIssue(result: ContinuityResult): ValidationIssue | null {
-  if (!result.isBroken || result.expectedOnwardReading == null) return null;
+  if (!result.isBroken || result.expectedOnwardReading == null || !result.severity) return null;
+  const toleranceNote =
+    result.toleranceKm != null && result.toleranceKm > 0 ? ` (tolerance ${result.toleranceKm} km)` : "";
   return {
     field: "onward_reading",
-    severity: "WARNING",
+    severity: result.severity,
     code: "CONTINUITY_GAP",
-    message: `Odometer gap detected! Expected onward reading of ${result.expectedOnwardReading} km based on previous trip's return reading.`,
+    message: `Odometer gap detected! Expected onward reading of ${result.expectedOnwardReading} km based on previous trip's return reading${toleranceNote}.`,
   };
+}
+
+// Re-derives the gap/severity for already-created entries, for list and
+// dashboard views — reuses the exact same tolerance-learning and
+// classification the entry-creation path used, rather than a second,
+// possibly-drifting implementation. Only annotates entries the creation
+// path already marked is_continuity_broken; a single learned tolerance per
+// vehicle (from its full current history) is used for the whole pass.
+export function annotateContinuitySeverity(
+  entries: Pick<FuelEntry, "id" | "vehicle_id" | "onward_reading" | "return_reading" | "created_at" | "is_continuity_broken">[],
+  vehicles: Pick<Vehicle, "id" | "starting_odometer">[],
+  defaultGapToleranceKm: number
+): Map<string, "INFO" | "WARNING"> {
+  const result = new Map<string, "INFO" | "WARNING">();
+  const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
+
+  const byVehicle = new Map<string, typeof entries>();
+  for (const entry of entries) {
+    const list = byVehicle.get(entry.vehicle_id) ?? [];
+    list.push(entry);
+    byVehicle.set(entry.vehicle_id, list);
+  }
+
+  byVehicle.forEach((list, vehicleId) => {
+    const vehicle = vehicleMap.get(vehicleId);
+    if (!vehicle) return;
+    const sorted = [...list].sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const tolerance = computeVehicleGapTolerance(sorted, vehicle.starting_odometer, defaultGapToleranceKm);
+
+    let previousReturn = vehicle.starting_odometer;
+    for (const entry of sorted) {
+      if (entry.is_continuity_broken) {
+        const gap = round2(entry.onward_reading - previousReturn);
+        const severity = classifyGapSeverity(gap, tolerance);
+        if (severity !== "NONE") result.set(entry.id, severity);
+      }
+      previousReturn = entry.return_reading;
+    }
+  });
+
+  return result;
 }
 
 // ---------------------------------------------------------------------
@@ -357,10 +475,11 @@ export interface EvaluateEntryOptions {
   vehicle: Vehicle;
   driver: Driver;
   previousReturnReading: number | null;
-  priorVehicleEntries: Pick<FuelEntry, "average_kml" | "diesel_consumed">[];
+  priorVehicleEntries: Pick<FuelEntry, "average_kml" | "diesel_consumed" | "onward_reading" | "return_reading">[];
   anomalyThresholdPct?: number;
   odometerRollover?: boolean;
   multipleFillUps?: boolean;
+  defaultGapToleranceKm?: number;
 }
 
 export function evaluateEntry(opts: EvaluateEntryOptions): EntryEvaluation {
@@ -372,6 +491,7 @@ export function evaluateEntry(opts: EvaluateEntryOptions): EntryEvaluation {
     anomalyThresholdPct = DEFAULT_ANOMALY_THRESHOLD_PCT,
     odometerRollover = false,
     multipleFillUps = false,
+    defaultGapToleranceKm = DEFAULT_GAP_TOLERANCE_KM,
   } = opts;
 
   const issues: ValidationIssue[] = [
@@ -385,7 +505,8 @@ export function evaluateEntry(opts: EvaluateEntryOptions): EntryEvaluation {
     ? { total_kms: 0, average_kml: 0 }
     : computeFields(input.onward_reading, input.return_reading, input.diesel_consumed, odometerRollover);
 
-  const continuity = checkContinuity(input.onward_reading, previousReturnReading);
+  const gapTolerance = computeVehicleGapTolerance(priorVehicleEntries, vehicle.starting_odometer, defaultGapToleranceKm);
+  const continuity = checkContinuity(input.onward_reading, previousReturnReading, gapTolerance);
   const cIssue = continuityIssue(continuity);
   if (cIssue) issues.push(cIssue);
 

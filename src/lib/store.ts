@@ -5,7 +5,7 @@
 // centralized (Code Guidelines #1, #3).
 
 import { getSupabaseClient, isSupabaseConfigured } from "./supabase";
-import { DEFAULT_EXPENSE_CATEGORY, evaluateEntry, validateGarageExpense } from "./validation";
+import { DEFAULT_EXPENSE_CATEGORY, DEFAULT_GAP_TOLERANCE_KM, evaluateEntry, validateGarageExpense } from "./validation";
 import { DEFAULT_MAINTENANCE_INTERVALS } from "./maintenance";
 import type {
   AuditLogRecord,
@@ -65,6 +65,7 @@ const DEFAULT_SETTINGS: Settings = {
   fuel_rate_inr: 95.5,
   anomaly_threshold_pct: 8.0,
   maintenance_intervals: DEFAULT_MAINTENANCE_INTERVALS,
+  continuity_gap_tolerance_km: DEFAULT_GAP_TOLERANCE_KM,
 };
 
 function lsGet<T>(key: string, fallback: T): T {
@@ -724,6 +725,7 @@ export async function createEntry(
     anomalyThresholdPct: settings.anomaly_threshold_pct,
     odometerRollover: opts.odometerRollover,
     multipleFillUps: opts.multipleFillUps,
+    defaultGapToleranceKm: settings.continuity_gap_tolerance_km,
   });
 
   if (!evaluation.isValid) {
@@ -843,6 +845,7 @@ export async function correctEntry(
     anomalyThresholdPct: settings.anomaly_threshold_pct,
     odometerRollover: opts.odometerRollover,
     multipleFillUps: opts.multipleFillUps,
+    defaultGapToleranceKm: settings.continuity_gap_tolerance_km,
   });
 
   if (!evaluation.isValid) {
@@ -981,6 +984,9 @@ export async function getSettings(): Promise<Settings> {
     return {
       fuel_rate_inr: Number(map.get("fuel_rate_inr") ?? DEFAULT_SETTINGS.fuel_rate_inr),
       anomaly_threshold_pct: Number(map.get("anomaly_threshold_pct") ?? DEFAULT_SETTINGS.anomaly_threshold_pct),
+      continuity_gap_tolerance_km: Number(
+        map.get("continuity_gap_tolerance_km") ?? DEFAULT_SETTINGS.continuity_gap_tolerance_km
+      ),
       // Merged rather than replaced outright: a category added to the
       // defaults after an org already saved custom intervals should still
       // show up for them instead of silently disappearing.

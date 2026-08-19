@@ -6,11 +6,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  CONTINUITY_ESCALATION_MULTIPLIER,
   DEFAULT_ANOMALY_THRESHOLD_PCT,
   checkContinuity,
+  classifyGapSeverity,
   computeFields,
   computeFleetAverage,
   computeVehicleBaseline,
+  computeVehicleGapTolerance,
   detectAnomaly,
   evaluateEntry,
   validatePhysicalSanity,
@@ -92,6 +95,86 @@ describe("checkContinuity — odometer gap detection", () => {
     const result = checkContinuity(1000, null);
     expect(result.isBroken).toBe(false);
     expect(result.gapKms).toBeNull();
+  });
+
+  it("does not flag a gap within tolerance — an unlogged short trip", () => {
+    const result = checkContinuity(1520, 1500, 25); // 20 km gap, 25 km tolerance
+    expect(result.isBroken).toBe(false);
+    expect(result.severity).toBeNull();
+  });
+
+  it("flags a gap just over tolerance as a quiet INFO note, not a prominent warning", () => {
+    const result = checkContinuity(1530, 1500, 25); // 30 km gap, within 3x tolerance (75 km)
+    expect(result.isBroken).toBe(true);
+    expect(result.severity).toBe("INFO");
+  });
+
+  it("escalates a gap well past tolerance to a prominent WARNING", () => {
+    const result = checkContinuity(1600, 1500, 25); // 100 km gap, past 3x tolerance (75 km)
+    expect(result.isBroken).toBe(true);
+    expect(result.severity).toBe("WARNING");
+  });
+
+  it("never tolerates a negative gap (onward reading less than previous return), regardless of tolerance size", () => {
+    const result = checkContinuity(1490, 1500, 1000); // -10 km gap, even against a huge tolerance
+    expect(result.isBroken).toBe(true);
+    expect(result.severity).toBe("WARNING");
+  });
+});
+
+describe("classifyGapSeverity — the boundary rules directly", () => {
+  it("treats a gap exactly at tolerance as NONE (not broken)", () => {
+    expect(classifyGapSeverity(25, 25)).toBe("NONE");
+  });
+
+  it("treats a gap exactly at the escalation boundary as INFO, not WARNING", () => {
+    expect(classifyGapSeverity(25 * CONTINUITY_ESCALATION_MULTIPLIER, 25)).toBe("INFO");
+  });
+
+  it("treats a gap one km past the escalation boundary as WARNING", () => {
+    expect(classifyGapSeverity(25 * CONTINUITY_ESCALATION_MULTIPLIER + 1, 25)).toBe("WARNING");
+  });
+});
+
+describe("computeVehicleGapTolerance — self-calibrating per-vehicle tolerance", () => {
+  it("falls back to the generic default when a vehicle has little or no history", () => {
+    const tolerance = computeVehicleGapTolerance([], 0, 25);
+    expect(tolerance).toBe(25);
+  });
+
+  it("learns toward its own typical gap size once it has enough history", () => {
+    // 15 entries, each with a consistent ~20 km unlogged gap before it —
+    // simulates a vehicle whose driver reliably skips short local trips.
+    let previousReturn = 0;
+    const entries: { onward_reading: number; return_reading: number }[] = [];
+    for (let i = 0; i < 15; i++) {
+      const onward = previousReturn + 20;
+      const ret = onward + 100;
+      entries.push({ onward_reading: onward, return_reading: ret });
+      previousReturn = ret;
+    }
+    const tolerance = computeVehicleGapTolerance(entries, 0, 25 /* generic default */);
+    // Fully blended (>= BASELINE_FULL_TRAILING_ENTRIES): should reflect the
+    // vehicle's own ~20 km gaps rather than the generic 25 km default.
+    expect(tolerance).toBeCloseTo(20, 0);
+  });
+
+  it("blends partway between the default and the learned value between the blend-start and full-trailing entry counts", () => {
+    // 12 entries (between BASELINE_BLEND_START_ENTRIES=10 and
+    // BASELINE_FULL_TRAILING_ENTRIES=15) with a consistent 60 km gap, well
+    // above the 25 km default — the blended tolerance should sit strictly
+    // between the two, not jump straight to the learned value.
+    let previousReturn = 0;
+    const entries: { onward_reading: number; return_reading: number }[] = [];
+    for (let i = 0; i < 12; i++) {
+      const onward = previousReturn + 60;
+      const ret = onward + 100;
+      entries.push({ onward_reading: onward, return_reading: ret });
+      previousReturn = ret;
+    }
+    const tolerance = computeVehicleGapTolerance(entries, 0, 25);
+    expect(tolerance).toBeGreaterThan(25);
+    expect(tolerance).toBeLessThan(60);
   });
 });
 
@@ -206,6 +289,22 @@ describe("validatePhysicalSanity — hard rejects", () => {
     });
     expect(evaluation.isValid).toBe(true);
     expect(evaluation.issues.some((i) => i.code === "MULTI_FILLUP_FLAGGED" && i.severity === "WARNING")).toBe(true);
+  });
+
+  it("no longer flags a small unlogged-short-trip gap once a default tolerance is configured", () => {
+    const driver: Driver = sampleDrivers[0];
+    const evaluation = evaluateEntry({
+      // Previous return was 1000; onward is 1015 — a 15 km gap, well within
+      // the 25 km default tolerance a client can now configure in Settings.
+      input: { date: "2026-05-01", vehicle_id: VEHICLE_A.id, driver_id: driver.id, onward_reading: 1015, return_reading: 1300, diesel_consumed: 40 },
+      vehicle: VEHICLE_A,
+      driver,
+      previousReturnReading: 1000,
+      priorVehicleEntries: [],
+      defaultGapToleranceKm: 25,
+    });
+    expect(evaluation.continuity.isBroken).toBe(false);
+    expect(evaluation.issues.some((i) => i.code === "CONTINUITY_GAP")).toBe(false);
   });
 });
 

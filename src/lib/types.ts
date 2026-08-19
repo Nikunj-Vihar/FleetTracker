@@ -95,6 +95,7 @@ export interface Settings {
   fuel_rate_inr: number;
   anomaly_threshold_pct: number;
   maintenance_intervals: MaintenanceIntervals;
+  continuity_gap_tolerance_km: number;
 }
 
 // --- Garage / maintenance expenses --------------------------------------
@@ -204,10 +205,14 @@ export interface ComputedFields {
   average_kml: number;
 }
 
+export type ContinuitySeverity = "INFO" | "WARNING" | null;
+
 export interface ContinuityResult {
   isBroken: boolean;
   expectedOnwardReading: number | null;
   gapKms: number | null;
+  severity: ContinuitySeverity;
+  toleranceKm: number | null;
 }
 
 export interface AnomalyResult {

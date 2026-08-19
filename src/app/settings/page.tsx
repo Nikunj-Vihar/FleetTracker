@@ -37,6 +37,7 @@ import {
   updateSettings,
 } from "@/lib/store";
 import { ALERTABLE_CATEGORIES, DEFAULT_MAINTENANCE_INTERVALS } from "@/lib/maintenance";
+import { DEFAULT_GAP_TOLERANCE_KM } from "@/lib/validation";
 import { formatDate } from "@/lib/utils";
 import type { Driver, Settings, Vehicle } from "@/lib/types";
 
@@ -47,6 +48,7 @@ export default function SettingsPage() {
     fuel_rate_inr: 95.5,
     anomaly_threshold_pct: 8,
     maintenance_intervals: DEFAULT_MAINTENANCE_INTERVALS,
+    continuity_gap_tolerance_km: DEFAULT_GAP_TOLERANCE_KM,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -238,6 +240,22 @@ export default function SettingsPage() {
           />
           <p className="mt-1 text-xs text-slate-400">
             Entries whose average km/l deviates more than this from baseline are flagged. Default: 8%.
+          </p>
+        </div>
+
+        <div>
+          <label className="label-text">Odometer Gap Tolerance (km)</label>
+          <input
+            type="number"
+            step="1"
+            className="input-field"
+            value={settings.continuity_gap_tolerance_km}
+            onChange={(e) => setSettings((s) => ({ ...s, continuity_gap_tolerance_km: Number(e.target.value) }))}
+          />
+          <p className="mt-1 text-xs text-slate-400">
+            A starting point only — once a vehicle has enough of its own trip history, it learns its own normal gap
+            size (e.g. short unlogged local trips) instead of using this flat number. Used for new/low-history
+            vehicles, and as the seed every vehicle blends away from. Default: 25 km.
           </p>
         </div>
 

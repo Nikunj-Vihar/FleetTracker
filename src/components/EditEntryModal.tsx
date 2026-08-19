@@ -5,7 +5,7 @@ import { AlertTriangle, Loader2, Pencil, X } from "lucide-react";
 import SearchableSelect from "./SearchableSelect";
 import { useCurrentUser } from "@/lib/auth";
 import { correctEntry, getVehicleEntryContext, ValidationError } from "@/lib/store";
-import { DEFAULT_ANOMALY_THRESHOLD_PCT, evaluateEntry } from "@/lib/validation";
+import { DEFAULT_ANOMALY_THRESHOLD_PCT, DEFAULT_GAP_TOLERANCE_KM, evaluateEntry } from "@/lib/validation";
 import type { Driver, FuelEntry, Vehicle } from "@/lib/types";
 
 interface EditEntryModalProps {
@@ -13,6 +13,7 @@ interface EditEntryModalProps {
   vehicles: Vehicle[];
   drivers: Driver[];
   anomalyThresholdPct?: number;
+  defaultGapToleranceKm?: number;
   onClose: () => void;
   onUpdated: (entry: FuelEntry) => void;
 }
@@ -22,6 +23,7 @@ export default function EditEntryModal({
   vehicles,
   drivers,
   anomalyThresholdPct = DEFAULT_ANOMALY_THRESHOLD_PCT,
+  defaultGapToleranceKm = DEFAULT_GAP_TOLERANCE_KM,
   onClose,
   onUpdated,
 }: EditEntryModalProps) {
@@ -74,8 +76,9 @@ export default function EditEntryModal({
       anomalyThresholdPct,
       odometerRollover,
       multipleFillUps,
+      defaultGapToleranceKm,
     });
-  }, [selectedVehicle, selectedDriver, context, date, place, vehicleId, driverId, onwardReading, returnReading, dieselConsumed, notes, anomalyThresholdPct, odometerRollover, multipleFillUps]);
+  }, [selectedVehicle, selectedDriver, context, date, place, vehicleId, driverId, onwardReading, returnReading, dieselConsumed, notes, anomalyThresholdPct, odometerRollover, multipleFillUps, defaultGapToleranceKm]);
 
   const showMultiFillUpOption = !!selectedVehicle && Number(dieselConsumed) > selectedVehicle.tank_capacity;
 

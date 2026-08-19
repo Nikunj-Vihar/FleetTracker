@@ -7,6 +7,7 @@ import AuditTrailModal from "@/components/AuditTrailModal";
 import EditEntryModal from "@/components/EditEntryModal";
 import { getSettings, listDrivers, listEntries, listVehicles, seedLocalSampleData } from "@/lib/store";
 import { DEFAULT_MAINTENANCE_INTERVALS } from "@/lib/maintenance";
+import { annotateContinuitySeverity, DEFAULT_GAP_TOLERANCE_KM } from "@/lib/validation";
 import { formatDate } from "@/lib/utils";
 import type { Driver, FuelEntry, Settings, Vehicle } from "@/lib/types";
 
@@ -18,6 +19,7 @@ export default function EntriesPage() {
     fuel_rate_inr: 95.5,
     anomaly_threshold_pct: 8,
     maintenance_intervals: DEFAULT_MAINTENANCE_INTERVALS,
+    continuity_gap_tolerance_km: DEFAULT_GAP_TOLERANCE_KM,
   });
   const [loading, setLoading] = useState(true);
 
@@ -45,6 +47,10 @@ export default function EntriesPage() {
 
   const vehicleMap = useMemo(() => new Map(vehicles.map((v) => [v.id, v])), [vehicles]);
   const driverMap = useMemo(() => new Map(drivers.map((d) => [d.id, d])), [drivers]);
+  const continuitySeverity = useMemo(
+    () => annotateContinuitySeverity(entries, vehicles, settings.continuity_gap_tolerance_km),
+    [entries, vehicles, settings.continuity_gap_tolerance_km]
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -127,6 +133,7 @@ export default function EntriesPage() {
                 entry={entry}
                 vehicleNo={vehicleMap.get(entry.vehicle_id)?.vehicle_no ?? "—"}
                 driverName={driverMap.get(entry.driver_id)?.name ?? "—"}
+                continuitySeverity={continuitySeverity.get(entry.id) ?? null}
                 onEdit={() => setEditEntry(entry)}
                 onAudit={() => setAuditEntry(entry)}
               />
@@ -175,7 +182,10 @@ export default function EntriesPage() {
                         {entry.is_anomalous && entry.anomaly_direction === "BETTER" && (
                           <span className="badge badge-better"><TrendingUp size={11} /> Better</span>
                         )}
-                        {entry.is_continuity_broken && (
+                        {entry.is_continuity_broken && continuitySeverity.get(entry.id) === "INFO" && (
+                          <span className="badge badge-neutral"><GitBranch size={11} /> Minor Gap</span>
+                        )}
+                        {entry.is_continuity_broken && continuitySeverity.get(entry.id) !== "INFO" && (
                           <span className="badge badge-warning"><GitBranch size={11} /> Gap</span>
                         )}
                         {!entry.is_anomalous && !entry.is_continuity_broken && (
@@ -218,6 +228,7 @@ export default function EntriesPage() {
           vehicles={vehicles}
           drivers={drivers}
           anomalyThresholdPct={settings.anomaly_threshold_pct}
+          defaultGapToleranceKm={settings.continuity_gap_tolerance_km}
           onClose={() => setEditEntry(null)}
           onUpdated={() => {
             load();
@@ -232,12 +243,14 @@ function EntryCard({
   entry,
   vehicleNo,
   driverName,
+  continuitySeverity,
   onEdit,
   onAudit,
 }: {
   entry: FuelEntry;
   vehicleNo: string;
   driverName: string;
+  continuitySeverity: "INFO" | "WARNING" | null;
   onEdit: () => void;
   onAudit: () => void;
 }) {
@@ -258,7 +271,10 @@ function EntryCard({
           {entry.is_anomalous && entry.anomaly_direction === "BETTER" && (
             <span className="badge badge-better"><TrendingUp size={11} /> Better</span>
           )}
-          {entry.is_continuity_broken && (
+          {entry.is_continuity_broken && continuitySeverity === "INFO" && (
+            <span className="badge badge-neutral"><GitBranch size={11} /> Minor Gap</span>
+          )}
+          {entry.is_continuity_broken && continuitySeverity !== "INFO" && (
             <span className="badge badge-warning"><GitBranch size={11} /> Gap</span>
           )}
         </div>
