@@ -120,6 +120,43 @@ describe("validatePhysicalSanity — hard rejects", () => {
     expect(tankIssue?.severity).toBe("ERROR");
   });
 
+  it("a multiple-fill-ups override downgrades the tank-capacity hard reject to a warning", () => {
+    const issues = validatePhysicalSanity(
+      { date: "2026-05-01", vehicle_id: "v1", driver_id: "d1", onward_reading: 1000, return_reading: 1300, diesel_consumed: 150 },
+      { tank_capacity: 120 },
+      false,
+      true
+    );
+    expect(issues.some((i) => i.severity === "ERROR")).toBe(false);
+    const flag = issues.find((i) => i.code === "MULTI_FILLUP_FLAGGED");
+    expect(flag).toBeDefined();
+    expect(flag?.severity).toBe("WARNING");
+  });
+
+  it("still hard-rejects an implausible diesel amount even with the multiple-fill-ups override", () => {
+    // 120 L tank * MULTI_FILLUP_MAX_MULTIPLIER (4) = 480 L ceiling — 1000 L is not a plausible multi-fill-up.
+    const issues = validatePhysicalSanity(
+      { date: "2026-05-01", vehicle_id: "v1", driver_id: "d1", onward_reading: 1000, return_reading: 1300, diesel_consumed: 1000 },
+      { tank_capacity: 120 },
+      false,
+      true
+    );
+    const issue = issues.find((i) => i.code === "EXCEEDS_PLAUSIBLE_MULTI_FILLUP");
+    expect(issue).toBeDefined();
+    expect(issue?.severity).toBe("ERROR");
+  });
+
+  it("flags a mismatched multiple-fill-ups override when diesel doesn't actually exceed one tank", () => {
+    const issues = validatePhysicalSanity(
+      { date: "2026-05-01", vehicle_id: "v1", driver_id: "d1", onward_reading: 1000, return_reading: 1300, diesel_consumed: 40 },
+      { tank_capacity: 120 },
+      false,
+      true
+    );
+    expect(issues.some((i) => i.severity === "ERROR")).toBe(false);
+    expect(issues.some((i) => i.code === "MULTI_FILLUP_NOT_APPLICABLE" && i.severity === "WARNING")).toBe(true);
+  });
+
   it("passes a physically sane entry with no issues", () => {
     const issues = validatePhysicalSanity(
       { date: "2026-05-01", vehicle_id: "v1", driver_id: "d1", onward_reading: 1000, return_reading: 1300, diesel_consumed: 40 },
@@ -153,6 +190,22 @@ describe("validatePhysicalSanity — hard rejects", () => {
     });
     expect(evaluation.isValid).toBe(true);
     expect(evaluation.issues.some((i) => i.code === "ODOMETER_ROLLOVER" && i.severity === "WARNING")).toBe(true);
+  });
+
+  it("a multiple-fill-ups override bypasses the tank-capacity hard reject but still raises a distinct manual-review flag (not silently accepted)", () => {
+    const driver: Driver = sampleDrivers[0];
+    const evaluation = evaluateEntry({
+      // VEHICLE_A's tank_capacity is 100 — 150 L exceeds one tank but is a
+      // plausible two-fill-up trip.
+      input: { date: "2026-05-01", vehicle_id: VEHICLE_A.id, driver_id: driver.id, onward_reading: 1000, return_reading: 1300, diesel_consumed: 150 },
+      vehicle: VEHICLE_A,
+      driver,
+      previousReturnReading: 1000,
+      priorVehicleEntries: [],
+      multipleFillUps: true,
+    });
+    expect(evaluation.isValid).toBe(true);
+    expect(evaluation.issues.some((i) => i.code === "MULTI_FILLUP_FLAGGED" && i.severity === "WARNING")).toBe(true);
   });
 });
 

@@ -36,6 +36,7 @@ export default function EditEntryModal({
   const [dieselConsumed, setDieselConsumed] = useState(String(entry.diesel_consumed));
   const [notes, setNotes] = useState(entry.notes ?? "");
   const [odometerRollover, setOdometerRollover] = useState(false);
+  const [multipleFillUps, setMultipleFillUps] = useState(false);
   const [reason, setReason] = useState("");
 
   const [context, setContext] = useState<{ previousReturnReading: number; priorEntries: FuelEntry[] } | null>(null);
@@ -72,8 +73,11 @@ export default function EditEntryModal({
       priorVehicleEntries: context.priorEntries,
       anomalyThresholdPct,
       odometerRollover,
+      multipleFillUps,
     });
-  }, [selectedVehicle, selectedDriver, context, date, place, vehicleId, driverId, onwardReading, returnReading, dieselConsumed, notes, anomalyThresholdPct, odometerRollover]);
+  }, [selectedVehicle, selectedDriver, context, date, place, vehicleId, driverId, onwardReading, returnReading, dieselConsumed, notes, anomalyThresholdPct, odometerRollover, multipleFillUps]);
+
+  const showMultiFillUpOption = !!selectedVehicle && Number(dieselConsumed) > selectedVehicle.tank_capacity;
 
   const errorIssues = evaluation?.issues.filter((i) => i.severity === "ERROR") ?? [];
   const warningIssues = evaluation?.issues.filter((i) => i.severity === "WARNING") ?? [];
@@ -102,7 +106,7 @@ export default function EditEntryModal({
           notes: notes || null,
         },
         { changedBy: user?.label ?? "Unknown", reason: reason.trim() },
-        { odometerRollover }
+        { odometerRollover, multipleFillUps }
       );
       onUpdated(updated);
       onClose();
@@ -182,6 +186,13 @@ export default function EditEntryModal({
             <label className="flex items-start gap-2 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
               <input type="checkbox" className="mt-0.5" checked={odometerRollover} onChange={(e) => setOdometerRollover(e.target.checked)} />
               <span>Odometer genuinely rolled over — flag for manual review instead of rejecting.</span>
+            </label>
+          )}
+
+          {showMultiFillUpOption && (
+            <label className="flex items-start gap-2 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+              <input type="checkbox" className="mt-0.5" checked={multipleFillUps} onChange={(e) => setMultipleFillUps(e.target.checked)} />
+              <span>Vehicle was refueled more than once on this trip — flag for manual review instead of rejecting.</span>
             </label>
           )}
 

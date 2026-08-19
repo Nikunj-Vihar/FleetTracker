@@ -29,6 +29,12 @@ export const DEFAULT_EXPENSE_CATEGORY = "Other";
 // value. Only relevant for the rare, explicit odometer-rollover override.
 export const ODOMETER_ROLLOVER_THRESHOLD = 999999;
 
+// A long-haul trip can legitimately top up more than once, so the
+// multi-fill-up override raises the ceiling rather than removing it —
+// this bounds how many "tanks" one trip can plausibly account for, so a
+// typo (an extra zero) still gets caught even with the box ticked.
+export const MULTI_FILLUP_MAX_MULTIPLIER = 4;
+
 // Once a vehicle has this many real entries, its baseline starts blending
 // away from the client-provided "expected average" toward its own trailing
 // average. Fully replaced by FULL_TRAILING_ENTRIES. See CLAUDE.md §3.1 and
@@ -80,7 +86,8 @@ export function computeFields(
 export function validatePhysicalSanity(
   input: FuelEntryInput,
   vehicle: Pick<Vehicle, "tank_capacity">,
-  odometerRollover = false
+  odometerRollover = false,
+  multipleFillUps = false
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
@@ -116,13 +123,44 @@ export function validatePhysicalSanity(
     });
   }
 
-  if (input.diesel_consumed > vehicle.tank_capacity) {
+  if (!multipleFillUps && input.diesel_consumed > vehicle.tank_capacity) {
     issues.push({
       field: "diesel_consumed",
       severity: "ERROR",
       code: "EXCEEDS_TANK_CAPACITY",
-      message: `Diesel consumed exceeds vehicle tank capacity (${vehicle.tank_capacity} Litres).`,
+      message: `Diesel consumed exceeds vehicle tank capacity (${vehicle.tank_capacity} Litres). If the vehicle was refueled more than once on this trip, tick the box below.`,
     });
+  }
+
+  if (multipleFillUps && input.diesel_consumed <= vehicle.tank_capacity) {
+    // The override was ticked but the number entered doesn't actually need
+    // it — same "don't silently accept a mislabeled entry" spirit as the
+    // rollover-not-applicable check above.
+    issues.push({
+      field: "diesel_consumed",
+      severity: "WARNING",
+      code: "MULTI_FILLUP_NOT_APPLICABLE",
+      message: "Multiple fill-ups was flagged but diesel consumed doesn't exceed one tank — please verify.",
+    });
+  }
+
+  if (multipleFillUps && input.diesel_consumed > vehicle.tank_capacity) {
+    const maxPlausible = vehicle.tank_capacity * MULTI_FILLUP_MAX_MULTIPLIER;
+    if (input.diesel_consumed > maxPlausible) {
+      issues.push({
+        field: "diesel_consumed",
+        severity: "ERROR",
+        code: "EXCEEDS_PLAUSIBLE_MULTI_FILLUP",
+        message: `Diesel consumed (${input.diesel_consumed} L) is implausibly high even across multiple fill-ups for this vehicle's ${vehicle.tank_capacity} L tank. Please verify the reading.`,
+      });
+    } else {
+      issues.push({
+        field: "diesel_consumed",
+        severity: "WARNING",
+        code: "MULTI_FILLUP_FLAGGED",
+        message: `Diesel consumed exceeds one tank's capacity (${vehicle.tank_capacity} L) — flagged as a multi-fill-up trip. Please verify before confirming.`,
+      });
+    }
   }
 
   if (input.diesel_consumed <= 0) {
@@ -322,6 +360,7 @@ export interface EvaluateEntryOptions {
   priorVehicleEntries: Pick<FuelEntry, "average_kml" | "diesel_consumed">[];
   anomalyThresholdPct?: number;
   odometerRollover?: boolean;
+  multipleFillUps?: boolean;
 }
 
 export function evaluateEntry(opts: EvaluateEntryOptions): EntryEvaluation {
@@ -332,11 +371,12 @@ export function evaluateEntry(opts: EvaluateEntryOptions): EntryEvaluation {
     priorVehicleEntries,
     anomalyThresholdPct = DEFAULT_ANOMALY_THRESHOLD_PCT,
     odometerRollover = false,
+    multipleFillUps = false,
   } = opts;
 
   const issues: ValidationIssue[] = [
     ...validateRequiredFields(input),
-    ...validatePhysicalSanity(input, vehicle, odometerRollover),
+    ...validatePhysicalSanity(input, vehicle, odometerRollover, multipleFillUps),
   ];
 
   const hasBlockingError = issues.some((i) => i.severity === "ERROR");

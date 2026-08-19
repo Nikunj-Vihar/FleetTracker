@@ -682,6 +682,7 @@ const EDITABLE_FIELDS: (keyof FuelEntryInput)[] = [
 export interface CreateEntryOptions {
   createdBy?: string | null;
   odometerRollover?: boolean;
+  multipleFillUps?: boolean;
 }
 
 // NOTE on Supabase mode + odometer rollover: total_kms/average_kml are
@@ -722,6 +723,7 @@ export async function createEntry(
     priorVehicleEntries: vehicleEntries,
     anomalyThresholdPct: settings.anomaly_threshold_pct,
     odometerRollover: opts.odometerRollover,
+    multipleFillUps: opts.multipleFillUps,
   });
 
   if (!evaluation.isValid) {
@@ -791,7 +793,7 @@ export async function correctEntry(
   id: string,
   changes: Partial<FuelEntryInput>,
   meta: CorrectEntryMeta,
-  opts: { odometerRollover?: boolean } = {}
+  opts: { odometerRollover?: boolean; multipleFillUps?: boolean } = {}
 ): Promise<{ entry: FuelEntry; evaluation: EntryEvaluation }> {
   if (!meta.reason?.trim()) {
     throw new ValidationError([
@@ -840,6 +842,7 @@ export async function correctEntry(
     priorVehicleEntries: otherVehicleEntries,
     anomalyThresholdPct: settings.anomaly_threshold_pct,
     odometerRollover: opts.odometerRollover,
+    multipleFillUps: opts.multipleFillUps,
   });
 
   if (!evaluation.isValid) {

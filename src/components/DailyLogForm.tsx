@@ -59,6 +59,7 @@ export default function DailyLogForm({
   const [returnReading, setReturnReading] = useState("");
   const [dieselConsumed, setDieselConsumed] = useState("");
   const [odometerRollover, setOdometerRollover] = useState(false);
+  const [multipleFillUps, setMultipleFillUps] = useState(false);
 
   const [addModal, setAddModal] = useState<"vehicle" | "driver" | null>(null);
   const [vehicleContext, setVehicleContext] = useState<{
@@ -189,6 +190,7 @@ export default function DailyLogForm({
       priorVehicleEntries: vehicleContext?.priorEntries ?? [],
       anomalyThresholdPct: thresholdPct,
       odometerRollover,
+      multipleFillUps,
     });
   }, [
     selectedVehicle,
@@ -201,10 +203,13 @@ export default function DailyLogForm({
     vehicleContext,
     thresholdPct,
     odometerRollover,
+    multipleFillUps,
   ]);
 
   const showRolloverOption =
     onwardReading !== "" && returnReading !== "" && Number(returnReading) < Number(onwardReading);
+  const showMultiFillUpOption =
+    dieselConsumed !== "" && !!selectedVehicle && Number(dieselConsumed) > selectedVehicle.tank_capacity;
 
   const errorIssues = preview?.issues.filter((i) => i.severity === "ERROR") ?? [];
   const warningIssues = preview?.issues.filter((i) => i.severity === "WARNING") ?? [];
@@ -216,6 +221,7 @@ export default function DailyLogForm({
     setReturnReading("");
     setDieselConsumed("");
     setOdometerRollover(false);
+    setMultipleFillUps(false);
     if (!keepVehicleDriver) {
       setVehicleId(null);
       setDriverId(null);
@@ -246,7 +252,7 @@ export default function DailyLogForm({
           return_reading: Number(returnReading),
           diesel_consumed: Number(dieselConsumed),
         },
-        { createdBy: user?.id ?? null, odometerRollover }
+        { createdBy: user?.id ?? null, odometerRollover, multipleFillUps }
       );
 
       onEntryCreated(entry);
@@ -450,6 +456,22 @@ export default function DailyLogForm({
               Return reading is less than onward reading — this is normally a hard rejection (negative KMS is not
               physically possible). If the odometer genuinely rolled over past its maximum, tick this box to flag it
               for manual review instead of blocking the entry.
+            </span>
+          </label>
+        )}
+
+        {showMultiFillUpOption && (
+          <label className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={multipleFillUps}
+              onChange={(e) => setMultipleFillUps(e.target.checked)}
+            />
+            <span>
+              Diesel consumed is more than this vehicle&apos;s tank capacity — this is normally a hard rejection. If
+              the vehicle was refueled more than once on this trip (common on long-distance runs), tick this box to
+              flag it for manual review instead of blocking the entry.
             </span>
           </label>
         )}
