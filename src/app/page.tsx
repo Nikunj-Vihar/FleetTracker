@@ -125,7 +125,7 @@ export default function DashboardPage() {
         maintenanceAlerts={maintenanceAlerts}
       />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
         <div className="space-y-3 lg:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex rounded-lg border border-slate-200 bg-white p-1 text-sm dark:border-slate-700 dark:bg-slate-800">

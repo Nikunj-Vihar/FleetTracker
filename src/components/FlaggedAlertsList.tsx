@@ -35,7 +35,12 @@ export default function FlaggedAlertsList({
   }
 
   return (
-    <div className="space-y-2">
+    // Capped + internally scrollable so a long flagged list can't stretch
+    // this grid row taller than its sibling (the trend chart) — Grid's
+    // default align-items: stretch was otherwise leaving dead whitespace
+    // under the shorter chart panel, and the page kept growing with the
+    // flagged count.
+    <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
       {alerts.map((alert, idx) => {
         const styles = alertKindStyle(alert.kind);
         const Icon = styles.icon;
