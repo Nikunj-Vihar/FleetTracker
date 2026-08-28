@@ -1,17 +1,32 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, GitBranch, History, Loader2, Pencil, Search, ShieldAlert, TrendingUp } from "lucide-react";
+import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AlertTriangle, GitBranch, History, Loader2, Pencil, Search, ShieldAlert, TrendingUp, X } from "lucide-react";
 import CsvExportButton from "@/components/CsvExportButton";
 import AuditTrailModal from "@/components/AuditTrailModal";
 import EditEntryModal from "@/components/EditEntryModal";
 import { getSettings, listDrivers, listEntries, listVehicles, seedLocalSampleData } from "@/lib/store";
 import { DEFAULT_MAINTENANCE_INTERVALS } from "@/lib/maintenance";
 import { annotateContinuitySeverity, DEFAULT_GAP_TOLERANCE_KM } from "@/lib/validation";
+import { alertKindStyle, computeFlaggedAlerts, type FlaggedAlertCard } from "@/lib/flaggedAlerts";
 import { formatDate } from "@/lib/utils";
 import type { Driver, FuelEntry, Settings, Vehicle } from "@/lib/types";
 
 export default function EntriesPage() {
+  return (
+    <Suspense fallback={null}>
+      <EntriesPageContent />
+    </Suspense>
+  );
+}
+
+function EntriesPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const highlightId = searchParams.get("entry");
+  const highlightRef = useRef<HTMLElement | null>(null);
+
   const [entries, setEntries] = useState<FuelEntry[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -51,6 +66,26 @@ export default function EntriesPage() {
     () => annotateContinuitySeverity(entries, vehicles, settings.continuity_gap_tolerance_km),
     [entries, vehicles, settings.continuity_gap_tolerance_km]
   );
+
+  // Same flag messages shown on the Dashboard's Flagged Entries cards and
+  // the notification bell, grouped by entry id so a deep-linked row can
+  // show "what the flag is about" inline instead of just landing on it.
+  const flaggedByEntry = useMemo(() => {
+    const cards = computeFlaggedAlerts(entries, vehicles, drivers, settings.continuity_gap_tolerance_km);
+    const map = new Map<string, FlaggedAlertCard[]>();
+    for (const card of cards) {
+      const list = map.get(card.entry.id) ?? [];
+      list.push(card);
+      map.set(card.entry.id, list);
+    }
+    return map;
+  }, [entries, vehicles, drivers, settings.continuity_gap_tolerance_km]);
+
+  useEffect(() => {
+    if (highlightId && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightId, loading]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -136,6 +171,10 @@ export default function EntriesPage() {
                 continuitySeverity={continuitySeverity.get(entry.id) ?? null}
                 onEdit={() => setEditEntry(entry)}
                 onAudit={() => setAuditEntry(entry)}
+                highlighted={entry.id === highlightId}
+                onHighlightMount={entry.id === highlightId ? (el) => { highlightRef.current = el; } : undefined}
+                onDismissHighlight={() => router.replace("/entries")}
+                flagCards={flaggedByEntry.get(entry.id)}
               />
             ))}
           </div>
@@ -159,8 +198,19 @@ export default function EntriesPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((entry) => (
-                  <tr key={entry.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60 dark:border-slate-800 dark:hover:bg-slate-800/40">
+                {filtered.map((entry) => {
+                  const isHighlighted = entry.id === highlightId;
+                  const flagCards = flaggedByEntry.get(entry.id);
+                  return (
+                  <Fragment key={entry.id}>
+                  <tr
+                    ref={isHighlighted ? (el) => { highlightRef.current = el; } : undefined}
+                    className={
+                      isHighlighted
+                        ? "border-b border-slate-100 bg-brand-50/70 ring-1 ring-inset ring-brand-300 last:border-0 dark:border-slate-800 dark:bg-brand-500/10 dark:ring-brand-500/40"
+                        : "border-b border-slate-100 last:border-0 hover:bg-slate-50/60 dark:border-slate-800 dark:hover:bg-slate-800/40"
+                    }
+                  >
                     <td className="whitespace-nowrap px-3 py-2.5 text-slate-700 dark:text-slate-200">{formatDate(entry.date)}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 font-medium text-slate-800 dark:text-slate-100">
                       {vehicleMap.get(entry.vehicle_id)?.vehicle_no ?? "—"}
@@ -214,7 +264,16 @@ export default function EntriesPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  {isHighlighted && flagCards && flagCards.length > 0 && (
+                    <tr className="bg-brand-50/70 dark:bg-brand-500/10">
+                      <td colSpan={11} className="px-3 pb-3">
+                        <FlagReasonBanner cards={flagCards} onDismiss={() => router.replace("/entries")} />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -246,6 +305,10 @@ function EntryCard({
   continuitySeverity,
   onEdit,
   onAudit,
+  highlighted,
+  onHighlightMount,
+  onDismissHighlight,
+  flagCards,
 }: {
   entry: FuelEntry;
   vehicleNo: string;
@@ -253,9 +316,25 @@ function EntryCard({
   continuitySeverity: "INFO" | "WARNING" | null;
   onEdit: () => void;
   onAudit: () => void;
+  highlighted?: boolean;
+  onHighlightMount?: (el: HTMLDivElement | null) => void;
+  onDismissHighlight?: () => void;
+  flagCards?: FlaggedAlertCard[];
 }) {
   return (
-    <div className="glass-panel p-3.5">
+    <div
+      ref={highlighted ? onHighlightMount : undefined}
+      className={
+        highlighted
+          ? "glass-panel border border-brand-300 bg-brand-50/70 p-3.5 dark:border-brand-500/40 dark:bg-brand-500/10"
+          : "glass-panel p-3.5"
+      }
+    >
+      {highlighted && flagCards && flagCards.length > 0 && (
+        <div className="mb-3">
+          <FlagReasonBanner cards={flagCards} onDismiss={onDismissHighlight} />
+        </div>
+      )}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-semibold text-slate-900 dark:text-white">{vehicleNo}</p>
@@ -320,6 +399,41 @@ function EntryCard({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Shows the same flag message(s) rendered on the Dashboard's Flagged
+// Entries cards and the notification bell, inline next to the entry a
+// user was sent here to look at.
+function FlagReasonBanner({ cards, onDismiss }: { cards: FlaggedAlertCard[]; onDismiss?: () => void }) {
+  return (
+    <div className="space-y-1.5 rounded-lg bg-white/70 p-2.5 dark:bg-slate-900/40">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
+          Why this was flagged
+        </p>
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700"
+            title="Dismiss highlight"
+          >
+            <X size={13} />
+          </button>
+        )}
+      </div>
+      {cards.map((card, idx) => {
+        const styles = alertKindStyle(card.kind);
+        const Icon = styles.icon;
+        return (
+          <p key={idx} className="flex items-start gap-1.5 text-xs text-slate-700 dark:text-slate-200">
+            <Icon size={13} className="mt-0.5 shrink-0 text-brand-600 dark:text-brand-400" />
+            {card.message}
+          </p>
+        );
+      })}
     </div>
   );
 }

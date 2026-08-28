@@ -100,9 +100,11 @@ export default function NotificationBell() {
                 const styles = alertKindStyle(alert.kind);
                 const Icon = styles.icon;
                 return (
-                  <div
+                  <Link
                     key={`${alert.entry.id}-${alert.kind}-${idx}`}
-                    className="flex items-start gap-2.5 border-b border-slate-100 px-3.5 py-2.5 last:border-0 dark:border-slate-800"
+                    href={`/entries?entry=${alert.entry.id}`}
+                    onClick={() => setOpen(false)}
+                    className="flex items-start gap-2.5 border-b border-slate-100 px-3.5 py-2.5 transition-colors last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/60"
                   >
                     <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${styles.iconWrapClass}`}>
                       <Icon size={14} />
@@ -118,7 +120,7 @@ export default function NotificationBell() {
                         {alert.vehicleNo} · {alert.driverName}
                       </p>
                     </div>
-                  </div>
+                  </Link>
                 );
               })
             )}

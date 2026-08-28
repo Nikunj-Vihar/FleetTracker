@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { alertKindStyle, computeFlaggedAlerts } from "@/lib/flaggedAlerts";
 import { DEFAULT_GAP_TOLERANCE_KM } from "@/lib/validation";
@@ -46,7 +47,14 @@ export default function FlaggedAlertsList({
         const Icon = styles.icon;
 
         return (
-          <div key={`${alert.entry.id}-${alert.kind}-${idx}`} className="glass-panel flex items-start gap-3 p-3.5">
+          // Links straight to the entry on the Entries page (scrolled into
+          // view and highlighted there), so a flag isn't a dead end — the
+          // user lands right on the row that needs a look.
+          <Link
+            key={`${alert.entry.id}-${alert.kind}-${idx}`}
+            href={`/entries?entry=${alert.entry.id}`}
+            className="glass-panel flex items-start gap-3 p-3.5 transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50"
+          >
             <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${styles.iconWrapClass}`}>
               <Icon size={16} />
             </span>
@@ -62,7 +70,7 @@ export default function FlaggedAlertsList({
               </div>
               <p className="text-sm text-slate-700 dark:text-slate-200">{alert.message}</p>
             </div>
-          </div>
+          </Link>
         );
       })}
     </div>
