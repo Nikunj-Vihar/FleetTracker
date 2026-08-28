@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { signOut } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import HelpButton from "./HelpButton";
+import NotificationBell from "./NotificationBell";
 import ThemeToggle from "./ThemeToggle";
 
 const NAV_LINKS = [
@@ -80,6 +81,7 @@ export default function Navbar() {
             })}
           </nav>
 
+          <NotificationBell />
           <ThemeToggle />
           <HelpButton />
 
