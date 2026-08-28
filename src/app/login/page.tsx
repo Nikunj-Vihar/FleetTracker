@@ -21,8 +21,14 @@ function LoginForm() {
     setSubmitting(true);
     try {
       await signInWithPassword(email, password);
+      // No router.refresh() here: the session cookie is already written
+      // synchronously by the Supabase browser client, and every bit of
+      // auth-dependent UI in this app reads it client-side via
+      // onAuthStateChange (see useCurrentUser) — a refresh only bought a
+      // second full server round-trip for the whole route tree right
+      // after this push already landed, which is what made first login
+      // feel like a stall vs. a plain in-app navigation.
       router.push(searchParams.get("next") || "/");
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed.");
     } finally {

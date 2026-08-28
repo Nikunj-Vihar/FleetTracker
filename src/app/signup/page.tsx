@@ -23,8 +23,8 @@ export default function SignupPage() {
     try {
       const { hasSession } = await signUpWithPassword(email, password, orgName);
       if (hasSession) {
+        // See login/page.tsx: no router.refresh() needed here either — same reasoning.
         router.push("/");
-        router.refresh();
       } else {
         setAwaitingConfirmation(true);
       }
