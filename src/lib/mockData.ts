@@ -19,7 +19,7 @@
 // something to compare against from its very first entry.
 
 import { checkContinuity, computeFields, computeVehicleBaseline, detectAnomaly } from "./validation";
-import type { Driver, FuelEntry, Garage, GarageExpense, Vehicle } from "./types";
+import type { Driver, FleetExpense, FuelEntry, Garage, GarageExpense, Vehicle } from "./types";
 
 export const sampleVehicles: Vehicle[] = [
   {
@@ -242,6 +242,60 @@ export function buildSampleGarageExpenses(vehicles: Vehicle[], garages: Garage[]
       created_by: null,
       created_at: "2023-06-01T09:00:00.000Z",
       updated_at: "2023-06-01T09:00:00.000Z",
+    },
+  ];
+}
+
+// Illustrative fleet/trip expense ledger — same per-trip, itemized shape
+// as the real client's paper "Tour Expenses" sheet (tolls, RTO/checkpost
+// fees, loading & unloading labor, driver allowance), with a fictional
+// trip reference, place names, and figures. Most lines share one
+// trip_reference to demonstrate filtering/subtotaling by trip; the last
+// two are logged standalone to show that's optional, not required.
+export function buildSampleFleetExpenses(vehicles: Vehicle[]): FleetExpense[] {
+  const byNo = new Map(vehicles.map((v) => [v.vehicle_no, v]));
+  const v1 = byNo.get("4417")!;
+  const v3 = byNo.get("6039")!;
+
+  const trip = "TRP-1042";
+  const tripDate = "2026-04-30";
+  const now = "2026-04-30T18:00:00.000Z";
+
+  const tripLine = (id: string, category: string, description: string, amount: number): FleetExpense => ({
+    id,
+    date: tripDate,
+    vehicle_id: v3.id,
+    trip_reference: trip,
+    category,
+    description,
+    amount,
+    notes: null,
+    created_by: null,
+    created_at: now,
+    updated_at: now,
+  });
+
+  return [
+    tripLine("flx-1", "Loading / Unloading", "Loading at origin depot", 600),
+    tripLine("flx-2", "Toll / State Gate", "State border toll gate", 500),
+    tripLine("flx-3", "RTO / Checkpost", "Checkpost fee, Midway Town", 300),
+    tripLine("flx-4", "Greasing", "Chassis greasing before long haul", 200),
+    tripLine("flx-5", "Loading / Unloading", "Unloading at destination depot", 700),
+    tripLine("flx-6", "Tyre Puncture Repair", "Roadside puncture repair", 250),
+    tripLine("flx-7", "Driver Allowance (Bata/TA)", "Driver travel allowance, 3 days", 1200),
+    // Standalone lines — no trip_reference, showing it's optional.
+    {
+      id: "flx-8",
+      date: "2026-05-01",
+      vehicle_id: v1.id,
+      trip_reference: null,
+      category: "Parking",
+      description: "Overnight parking, transport yard",
+      amount: 150,
+      notes: null,
+      created_by: null,
+      created_at: "2026-05-01T09:00:00.000Z",
+      updated_at: "2026-05-01T09:00:00.000Z",
     },
   ];
 }

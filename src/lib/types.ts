@@ -139,6 +139,38 @@ export interface GarageExpenseAuditLogRecord {
   created_at: string;
 }
 
+// --- Fleet / trip expenses ----------------------------------------------
+// Operational, per-trip costs (tolls, RTO/checkpost fees, loading &
+// unloading labor, driver allowance, tyre punctures, parking) — distinct
+// from GarageExpense, which is specifically vehicle-service billing tied
+// into the maintenance-due interval system. Same append-only correction
+// pattern via FleetExpenseAuditLogRecord as every other entity here.
+
+export interface FleetExpense {
+  id: string;
+  date: string;
+  vehicle_id: string;
+  trip_reference: string | null;
+  category: string;
+  description: string;
+  amount: number;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FleetExpenseAuditLogRecord {
+  id: string;
+  entry_id: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  changed_by: string | null;
+  reason: string | null;
+  created_at: string;
+}
+
 // --- Input / form shapes -----------------------------------------------
 
 // Fields captured directly from the entry form. Total KMS and Average km/l
@@ -186,6 +218,19 @@ export interface GarageExpenseInput {
   category: string;
   is_paid?: boolean;
   paid_date?: string | null;
+  notes?: string | null;
+}
+
+// trip_reference is optional free text (e.g. "ORIOF-0439") so related
+// line items from the same trip can be filtered/subtotaled together
+// without a separate Trips entity.
+export interface FleetExpenseInput {
+  date: string;
+  vehicle_id: string;
+  trip_reference?: string | null;
+  category: string;
+  description: string;
+  amount: number;
   notes?: string | null;
 }
 

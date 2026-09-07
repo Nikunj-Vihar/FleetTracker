@@ -5,14 +5,24 @@
 // centralized (Code Guidelines #1, #3).
 
 import { getSupabaseClient, isSupabaseConfigured } from "./supabase";
-import { DEFAULT_EXPENSE_CATEGORY, DEFAULT_GAP_TOLERANCE_KM, evaluateEntry, validateGarageExpense } from "./validation";
+import {
+  DEFAULT_EXPENSE_CATEGORY,
+  DEFAULT_GAP_TOLERANCE_KM,
+  evaluateEntry,
+  validateFleetExpense,
+  validateGarageExpense,
+} from "./validation";
 import { DEFAULT_MAINTENANCE_INTERVALS } from "./maintenance";
+import { DEFAULT_FLEET_EXPENSE_CATEGORY } from "./fleetExpenses";
 import type {
   AuditLogRecord,
   Driver,
   DriverAuditLogRecord,
   DriverInput,
   EntryEvaluation,
+  FleetExpense,
+  FleetExpenseAuditLogRecord,
+  FleetExpenseInput,
   FuelEntry,
   FuelEntryInput,
   Garage,
@@ -59,6 +69,8 @@ const LS_KEYS = {
   garageExpenseAudit: "fleettracker.garageExpenseAudit",
   vehicleAudit: "fleettracker.vehicleAudit",
   driverAudit: "fleettracker.driverAudit",
+  fleetExpenses: "fleettracker.fleetExpenses",
+  fleetExpenseAudit: "fleettracker.fleetExpenseAudit",
 };
 
 const DEFAULT_SETTINGS: Settings = {
@@ -1319,6 +1331,223 @@ export async function listGarageExpenseAuditLogs(entryId: string): Promise<Garag
 }
 
 // ---------------------------------------------------------------------
+// Fleet expenses (trip/operational costs — tolls, RTO fees, loading &
+// unloading, driver allowance). Same append-only correction shape as
+// garage expenses, minus the paid/unpaid billing concept — these are
+// typically settled on the spot, not billed on credit.
+// ---------------------------------------------------------------------
+
+export async function listFleetExpenses(): Promise<FleetExpense[]> {
+  if (isSupabaseConfigured) {
+    const client = getSupabaseClient()!;
+    const { data, error } = await client
+      .from("fleet_expenses")
+      .select("*")
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    return data as FleetExpense[];
+  }
+  return [...lsGet<FleetExpense[]>(LS_KEYS.fleetExpenses, [])].sort((a, b) =>
+    a.created_at.localeCompare(b.created_at)
+  );
+}
+
+export async function getFleetExpenseById(id: string): Promise<FleetExpense | null> {
+  const expenses = await listFleetExpenses();
+  return expenses.find((e) => e.id === id) ?? null;
+}
+
+const EDITABLE_FLEET_EXPENSE_FIELDS: (keyof FleetExpenseInput)[] = [
+  "date",
+  "vehicle_id",
+  "trip_reference",
+  "category",
+  "description",
+  "amount",
+  "notes",
+];
+
+export interface CreateFleetExpenseOptions {
+  createdBy?: string | null;
+}
+
+export async function createFleetExpense(
+  input: FleetExpenseInput,
+  opts: CreateFleetExpenseOptions = {}
+): Promise<FleetExpense> {
+  const issues = validateFleetExpense(input);
+  if (issues.length > 0) throw new ValidationError(issues);
+
+  const vehicle = await getVehicleById(input.vehicle_id);
+  if (!vehicle) {
+    throw new ValidationError([
+      { field: "vehicle_id", severity: "ERROR", code: "NOT_FOUND", message: "Selected vehicle was not found." },
+    ]);
+  }
+
+  const now = new Date().toISOString();
+  const category = input.category?.trim() || DEFAULT_FLEET_EXPENSE_CATEGORY;
+
+  if (isSupabaseConfigured) {
+    const client = getSupabaseClient()!;
+    const { data, error } = await client
+      .from("fleet_expenses")
+      .insert({
+        date: input.date,
+        vehicle_id: input.vehicle_id,
+        trip_reference: input.trip_reference?.trim() || null,
+        category,
+        description: input.description.trim(),
+        amount: input.amount,
+        notes: input.notes ?? null,
+        created_by: opts.createdBy ?? null,
+      })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data as FleetExpense;
+  }
+
+  const record: FleetExpense = {
+    id: newId(),
+    date: input.date,
+    vehicle_id: input.vehicle_id,
+    trip_reference: input.trip_reference?.trim() || null,
+    category,
+    description: input.description.trim(),
+    amount: input.amount,
+    notes: input.notes ?? null,
+    created_by: opts.createdBy ?? null,
+    created_at: now,
+    updated_at: now,
+  };
+
+  const expenses = lsGet<FleetExpense[]>(LS_KEYS.fleetExpenses, []);
+  expenses.push(record);
+  lsSet(LS_KEYS.fleetExpenses, expenses);
+  return record;
+}
+
+export interface CorrectFleetExpenseMeta {
+  changedBy: string;
+  reason: string;
+}
+
+export async function correctFleetExpense(
+  id: string,
+  changes: Partial<FleetExpenseInput>,
+  meta: CorrectFleetExpenseMeta
+): Promise<FleetExpense> {
+  if (!meta.reason?.trim()) {
+    throw new ValidationError([
+      { field: "reason", severity: "ERROR", code: "REQUIRED", message: "A reason is required for every correction." },
+    ]);
+  }
+
+  const existing = await getFleetExpenseById(id);
+  if (!existing) throw new Error("Expense not found.");
+
+  const merged: FleetExpenseInput = {
+    date: changes.date ?? existing.date,
+    vehicle_id: changes.vehicle_id ?? existing.vehicle_id,
+    trip_reference: changes.trip_reference !== undefined ? changes.trip_reference : existing.trip_reference,
+    category: changes.category ?? existing.category,
+    description: changes.description ?? existing.description,
+    amount: changes.amount ?? existing.amount,
+    notes: changes.notes !== undefined ? changes.notes : existing.notes,
+  };
+
+  const issues = validateFleetExpense(merged);
+  if (issues.length > 0) throw new ValidationError(issues);
+
+  const vehicle = await getVehicleById(merged.vehicle_id);
+  if (!vehicle) {
+    throw new ValidationError([
+      { field: "vehicle_id", severity: "ERROR", code: "NOT_FOUND", message: "Selected vehicle was not found." },
+    ]);
+  }
+
+  type AuditDraft = Omit<FleetExpenseAuditLogRecord, "id" | "created_at">;
+  const auditDrafts: AuditDraft[] = [];
+  const existingAsInput = existing as unknown as Record<string, unknown>;
+  const mergedAsInput = merged as unknown as Record<string, unknown>;
+
+  for (const field of EDITABLE_FLEET_EXPENSE_FIELDS) {
+    const oldVal = existingAsInput[field];
+    const newVal = mergedAsInput[field];
+    if (String(oldVal ?? "") !== String(newVal ?? "")) {
+      auditDrafts.push({
+        entry_id: id,
+        field_name: field,
+        old_value: oldVal == null ? null : String(oldVal),
+        new_value: newVal == null ? null : String(newVal),
+        changed_by: meta.changedBy,
+        reason: meta.reason,
+      });
+    }
+  }
+
+  if (auditDrafts.length === 0) {
+    return existing;
+  }
+
+  const now = new Date().toISOString();
+
+  if (isSupabaseConfigured) {
+    const client = getSupabaseClient()!;
+    const { error: auditError } = await client.from("fleet_expense_audit_logs").insert(auditDrafts);
+    if (auditError) throw new Error(auditError.message);
+
+    const { data, error } = await client
+      .from("fleet_expenses")
+      .update({
+        date: merged.date,
+        vehicle_id: merged.vehicle_id,
+        trip_reference: merged.trip_reference,
+        category: merged.category,
+        description: merged.description,
+        amount: merged.amount,
+        notes: merged.notes,
+      })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data as FleetExpense;
+  }
+
+  const audits = lsGet<FleetExpenseAuditLogRecord[]>(LS_KEYS.fleetExpenseAudit, []);
+  for (const draft of auditDrafts) {
+    audits.push({ ...draft, id: newId(), created_at: now });
+  }
+  lsSet(LS_KEYS.fleetExpenseAudit, audits);
+
+  const updated: FleetExpense = { ...existing, ...merged, updated_at: now };
+  const expenses = lsGet<FleetExpense[]>(LS_KEYS.fleetExpenses, []);
+  const idx = expenses.findIndex((e) => e.id === id);
+  if (idx >= 0) expenses[idx] = updated;
+  lsSet(LS_KEYS.fleetExpenses, expenses);
+
+  return updated;
+}
+
+export async function listFleetExpenseAuditLogs(entryId: string): Promise<FleetExpenseAuditLogRecord[]> {
+  if (isSupabaseConfigured) {
+    const client = getSupabaseClient()!;
+    const { data, error } = await client
+      .from("fleet_expense_audit_logs")
+      .select("*")
+      .eq("entry_id", entryId)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return data as FleetExpenseAuditLogRecord[];
+  }
+  return lsGet<FleetExpenseAuditLogRecord[]>(LS_KEYS.fleetExpenseAudit, [])
+    .filter((a) => a.entry_id === entryId)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+// ---------------------------------------------------------------------
 // Seed / reset (LocalStorage mode only — Supabase data is seeded via SQL
 // or the client's own entries, not overwritten from the browser)
 // ---------------------------------------------------------------------
@@ -1328,8 +1557,14 @@ export async function seedLocalSampleData(force = false): Promise<void> {
   const alreadySeeded = window.localStorage.getItem(LS_KEYS.seeded);
   if (alreadySeeded && !force) return;
 
-  const { sampleVehicles, sampleDrivers, sampleGarages, buildSampleEntries, buildSampleGarageExpenses } =
-    await import("./mockData");
+  const {
+    sampleVehicles,
+    sampleDrivers,
+    sampleGarages,
+    buildSampleEntries,
+    buildSampleGarageExpenses,
+    buildSampleFleetExpenses,
+  } = await import("./mockData");
   lsSet(LS_KEYS.vehicles, sampleVehicles);
   lsSet(LS_KEYS.drivers, sampleDrivers);
   lsSet(LS_KEYS.entries, buildSampleEntries(sampleVehicles, sampleDrivers));
@@ -1337,6 +1572,8 @@ export async function seedLocalSampleData(force = false): Promise<void> {
   lsSet(LS_KEYS.garages, sampleGarages);
   lsSet(LS_KEYS.garageExpenses, buildSampleGarageExpenses(sampleVehicles, sampleGarages));
   lsSet(LS_KEYS.garageExpenseAudit, []);
+  lsSet(LS_KEYS.fleetExpenses, buildSampleFleetExpenses(sampleVehicles));
+  lsSet(LS_KEYS.fleetExpenseAudit, []);
   window.localStorage.setItem(LS_KEYS.seeded, "true");
 }
 

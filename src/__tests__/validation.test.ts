@@ -16,6 +16,7 @@ import {
   computeVehicleGapTolerance,
   detectAnomaly,
   evaluateEntry,
+  validateFleetExpense,
   validatePhysicalSanity,
 } from "@/lib/validation";
 import { buildSampleEntries, sampleDrivers, sampleVehicles } from "@/lib/mockData";
@@ -546,5 +547,53 @@ describe("computeFleetAverage", () => {
 
   it("returns null when there is no diesel data yet", () => {
     expect(computeFleetAverage([])).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------
+// Fleet / trip expenses
+// ---------------------------------------------------------------------
+
+describe("validateFleetExpense", () => {
+  const validInput = {
+    date: "2026-04-30",
+    vehicle_id: VEHICLE_A.id,
+    trip_reference: "TRP-1042",
+    category: "Toll / State Gate",
+    description: "State border toll gate",
+    amount: 500,
+  };
+
+  it("accepts a fully-populated valid expense", () => {
+    expect(validateFleetExpense(validInput)).toEqual([]);
+  });
+
+  it("accepts a valid expense with no trip reference — grouping is optional", () => {
+    expect(validateFleetExpense({ ...validInput, trip_reference: null })).toEqual([]);
+  });
+
+  it("rejects a missing date", () => {
+    const issues = validateFleetExpense({ ...validInput, date: "" });
+    expect(issues.some((i) => i.field === "date" && i.severity === "ERROR")).toBe(true);
+  });
+
+  it("rejects a missing vehicle", () => {
+    const issues = validateFleetExpense({ ...validInput, vehicle_id: "" });
+    expect(issues.some((i) => i.field === "vehicle_id" && i.severity === "ERROR")).toBe(true);
+  });
+
+  it("rejects a blank description", () => {
+    const issues = validateFleetExpense({ ...validInput, description: "   " });
+    expect(issues.some((i) => i.field === "description" && i.severity === "ERROR")).toBe(true);
+  });
+
+  it("rejects a missing category", () => {
+    const issues = validateFleetExpense({ ...validInput, category: "" });
+    expect(issues.some((i) => i.field === "category" && i.severity === "ERROR")).toBe(true);
+  });
+
+  it("rejects a zero or negative amount", () => {
+    expect(validateFleetExpense({ ...validInput, amount: 0 }).some((i) => i.field === "amount")).toBe(true);
+    expect(validateFleetExpense({ ...validInput, amount: -50 }).some((i) => i.field === "amount")).toBe(true);
   });
 });

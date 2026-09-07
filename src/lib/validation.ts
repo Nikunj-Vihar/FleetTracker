@@ -14,6 +14,7 @@ import type {
   ContinuityResult,
   Driver,
   EntryEvaluation,
+  FleetExpenseInput,
   FuelEntry,
   FuelEntryInput,
   GarageExpenseInput,
@@ -571,6 +572,49 @@ export function validateGarageExpense(input: GarageExpenseInput): ValidationIssu
       severity: "ERROR",
       code: "NEGATIVE_READING",
       message: "Odometer reading cannot be negative.",
+    });
+  }
+
+  return issues;
+}
+
+// ---------------------------------------------------------------------
+// Fleet expenses (trip/operational costs — tolls, RTO fees, loading &
+// unloading, driver allowance) — same lightweight required-field/sanity
+// checks as garage expenses, no continuity or baseline concept.
+// ---------------------------------------------------------------------
+
+export function validateFleetExpense(input: FleetExpenseInput): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  if (!input.date) {
+    issues.push({ field: "date", severity: "ERROR", code: "REQUIRED", message: "Date is required." });
+  }
+  if (!input.vehicle_id) {
+    issues.push({ field: "vehicle_id", severity: "ERROR", code: "REQUIRED", message: "Vehicle is required." });
+  }
+  if (!input.description?.trim()) {
+    issues.push({
+      field: "description",
+      severity: "ERROR",
+      code: "REQUIRED",
+      message: "A description of the expense is required.",
+    });
+  }
+  if (!input.category?.trim()) {
+    issues.push({
+      field: "category",
+      severity: "ERROR",
+      code: "REQUIRED",
+      message: "Please select a category for this expense.",
+    });
+  }
+  if (input.amount == null || Number.isNaN(input.amount) || input.amount <= 0) {
+    issues.push({
+      field: "amount",
+      severity: "ERROR",
+      code: "INVALID_AMOUNT",
+      message: "Amount must be greater than zero.",
     });
   }
 

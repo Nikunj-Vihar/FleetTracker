@@ -52,9 +52,11 @@ export async function POST(req: NextRequest) {
   }
 
   // Deleting the organization cascades to every tenant table (vehicles,
-  // drivers, fuel_entries, garages, garage_expenses, their audit logs,
-  // settings, and org_members itself) — see
-  // supabase/migrations/09_org_cascade_delete.sql.
+  // drivers, fuel_entries, garages, garage_expenses, fleet_expenses, their
+  // audit logs, settings, and org_members itself) — see
+  // supabase/migrations/09_org_cascade_delete.sql and 13_fleet_expenses.sql
+  // (fleet_expenses declares its own ON DELETE CASCADE directly, since it
+  // was created after that cascade fix already existed).
   if (membership?.org_id) {
     const { error: orgDeleteError } = await admin.from("organizations").delete().eq("id", membership.org_id);
     if (orgDeleteError) {
