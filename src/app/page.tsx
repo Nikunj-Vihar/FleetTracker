@@ -1,17 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import FleetSummaryCards from "@/components/FleetSummaryCards";
 import FleetStatusTiles from "@/components/FleetStatusTiles";
 import FleetRoadVisual from "@/components/FleetRoadVisual";
 import BaselineTrendChart from "@/components/BaselineTrendChart";
 import FlaggedAlertsList from "@/components/FlaggedAlertsList";
 import MaintenanceAlertsList from "@/components/MaintenanceAlertsList";
+import HeroKpiCard from "@/components/HeroKpiCard";
 import { getSettings, listDrivers, listEntries, listGarageExpenses, listVehicles, seedLocalSampleData } from "@/lib/store";
 import { buildDriverTrend, buildVehicleTrend, DEFAULT_GAP_TOLERANCE_KM } from "@/lib/validation";
 import { computeMaintenanceAlerts, DEFAULT_MAINTENANCE_INTERVALS } from "@/lib/maintenance";
 import { computeUnloggedMileage } from "@/lib/unloggedMileage";
+import { computePeriodDelta, splitByPeriod } from "@/lib/kpiTrend";
 import UnloggedMileageList from "@/components/UnloggedMileageList";
 import { cn } from "@/lib/utils";
 import type { Driver, FuelEntry, GarageExpense, Settings, Vehicle } from "@/lib/types";
@@ -60,6 +62,18 @@ export default function DashboardPage() {
   // Status board reflects the fleet as it is today, so a soft-deleted
   // vehicle (e.g. sold or retired) shouldn't still show up as "Idle".
   const activeVehicles = useMemo(() => vehicles.filter((v) => !v.deleted_at), [vehicles]);
+
+  // Hero metric: flagged entries in the last 30 days, widened to match what
+  // FlaggedAlertsList/NotificationBell already treat as "flagged" (anomaly
+  // OR odometer gap), not just the narrower anomaly-only count the old
+  // Dashboard tile showed. Trend compares against the 30 days before that.
+  const flaggedTrend = useMemo(() => {
+    const { current, previous } = splitByPeriod(entries, (e) => e.date, 30);
+    const countFlagged = (list: FuelEntry[]) => list.filter((e) => e.is_anomalous || e.is_continuity_broken).length;
+    const currentCount = countFlagged(current);
+    const previousCount = previous.length ? countFlagged(previous) : null;
+    return { currentCount, currentTotal: current.length, delta: computePeriodDelta(currentCount, previousCount) };
+  }, [entries]);
 
   const unloggedMileage = useMemo(() => {
     const startOfMonth = new Date();
@@ -114,9 +128,21 @@ export default function DashboardPage() {
         <p className="text-sm text-slate-500 dark:text-slate-400">Live overview of fuel usage, cost, and flagged entries.</p>
       </div>
 
-      <FleetStatusTiles vehicles={activeVehicles} entries={entries} maintenanceAlerts={maintenanceAlerts} />
+      <HeroKpiCard
+        icon={AlertTriangle}
+        label="Flagged Entries — Last 30 Days"
+        value={String(flaggedTrend.currentCount)}
+        sub={`of ${flaggedTrend.currentTotal} ${flaggedTrend.currentTotal === 1 ? "entry" : "entries"} logged`}
+        delta={flaggedTrend.delta}
+        goodDirection="down"
+        href="/entries?flagged=true"
+      />
 
-      <FleetSummaryCards entries={entries} fuelRateInr={settings.fuel_rate_inr} />
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Fleet at a Glance</h2>
+        <FleetStatusTiles vehicles={activeVehicles} entries={entries} maintenanceAlerts={maintenanceAlerts} />
+        <FleetSummaryCards entries={entries} fuelRateInr={settings.fuel_rate_inr} />
+      </div>
 
       <FleetRoadVisual
         vehicles={activeVehicles}

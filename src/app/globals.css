@@ -4,6 +4,33 @@
 
 :root {
   color-scheme: light dark;
+
+  /* BaselineTrendChart's palette — CSS vars (not Tailwind classes) because
+     Recharts/SVG props take literal color strings, and vars resolve inside
+     SVG presentation attributes the same way they do in inline style, so
+     the chart repaints on .dark toggle with no React re-render needed.
+     Every value restates a color already used elsewhere: chart-line/band
+     mirror brand-600/brand-400, chart-worse mirrors badge-worse's red,
+     chart-axis/grid mirror slate-500/200. chart-better stays violet rather
+     than badge-better's blue so the "better" anomaly dot never collides
+     with the blue trend line itself (see BaselineTrendChart.tsx). */
+  --chart-surface: #ffffff;
+  --chart-line: #1a67f2;
+  --chart-band: rgba(26, 103, 242, 0.1);
+  --chart-worse: #dc2626;
+  --chart-better: #7c3aed;
+  --chart-axis: #64748b;
+  --chart-grid: #e2e8f0;
+}
+
+.dark {
+  --chart-surface: #0f172a;
+  --chart-line: #59a7ff;
+  --chart-band: rgba(89, 167, 255, 0.14);
+  --chart-worse: #f87171;
+  --chart-better: #a78bfa;
+  --chart-axis: #94a3b8;
+  --chart-grid: #334155;
 }
 
 html {
@@ -23,6 +50,10 @@ body {
     @apply rounded-2xl border border-white/40 bg-white/70 shadow-glass backdrop-blur-md dark:border-white/10 dark:bg-slate-900/60;
   }
 
+  /* Modal width convention — pick one of these three, don't invent a new
+     max-w-* value: max-w-sm for a micro form (1-3 fields, e.g. quick-add),
+     max-w-md for a confirmation/single-message dialog, max-w-lg for a
+     multi-field edit form or scrollable content (e.g. an audit timeline). */
   .glass-panel-solid {
     @apply rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900;
   }

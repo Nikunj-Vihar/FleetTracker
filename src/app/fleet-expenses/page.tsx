@@ -4,11 +4,21 @@ import { useEffect, useMemo, useState } from "react";
 import { History, Loader2, Pencil, Receipt, Route, Search } from "lucide-react";
 import FleetExpenseForm from "@/components/FleetExpenseForm";
 import EditFleetExpenseModal from "@/components/EditFleetExpenseModal";
-import FleetExpenseAuditTrailModal from "@/components/FleetExpenseAuditTrailModal";
-import { listFleetExpenses, listVehicles, seedLocalSampleData } from "@/lib/store";
+import AuditLogTimeline from "@/components/AuditLogTimeline";
+import { listFleetExpenseAuditLogs, listFleetExpenses, listVehicles, seedLocalSampleData } from "@/lib/store";
 import { FLEET_EXPENSE_CATEGORIES } from "@/lib/fleetExpenses";
 import { formatDate, formatInr } from "@/lib/utils";
 import type { FleetExpense, Vehicle } from "@/lib/types";
+
+const FLEET_EXPENSE_FIELD_LABELS: Record<string, string> = {
+  date: "Date",
+  vehicle_id: "Vehicle",
+  trip_reference: "Trip Ref",
+  category: "Category",
+  description: "Description",
+  amount: "Amount",
+  notes: "Notes",
+};
 
 export default function FleetExpensesPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -224,7 +234,15 @@ export default function FleetExpensesPage() {
         />
       )}
 
-      {auditExpense && <FleetExpenseAuditTrailModal expense={auditExpense} onClose={() => setAuditExpense(null)} />}
+      {auditExpense && (
+        <AuditLogTimeline
+          title="Audit Trail"
+          fieldLabels={FLEET_EXPENSE_FIELD_LABELS}
+          fetchLogs={() => listFleetExpenseAuditLogs(auditExpense.id)}
+          emptyMessage="No corrections yet — this entry is exactly as originally logged."
+          onClose={() => setAuditExpense(null)}
+        />
+      )}
     </div>
   );
 }

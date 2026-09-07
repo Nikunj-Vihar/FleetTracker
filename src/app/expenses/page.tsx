@@ -4,12 +4,33 @@ import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, CircleDollarSign, History, Loader2, Pencil, Receipt, Search, Wrench } from "lucide-react";
 import GarageExpenseForm from "@/components/GarageExpenseForm";
 import EditGarageExpenseModal from "@/components/EditGarageExpenseModal";
-import GarageExpenseAuditTrailModal from "@/components/GarageExpenseAuditTrailModal";
+import AuditLogTimeline from "@/components/AuditLogTimeline";
 import { useCurrentUser } from "@/lib/auth";
-import { listGarageExpenses, listGarages, listVehicles, seedLocalSampleData, setGarageExpensePaidStatus } from "@/lib/store";
+import {
+  listGarageExpenseAuditLogs,
+  listGarageExpenses,
+  listGarages,
+  listVehicles,
+  seedLocalSampleData,
+  setGarageExpensePaidStatus,
+} from "@/lib/store";
 import { EXPENSE_CATEGORIES } from "@/lib/maintenance";
 import { formatDate, formatInr } from "@/lib/utils";
 import type { Garage, GarageExpense, Vehicle } from "@/lib/types";
+
+const GARAGE_EXPENSE_FIELD_LABELS: Record<string, string> = {
+  date: "Date",
+  vehicle_id: "Vehicle",
+  odometer_reading: "Odometer Reading",
+  work_description: "Type of Work / Replacement",
+  garage_id: "Garage",
+  bill_no: "Bill No.",
+  amount: "Total Cost",
+  category: "Category",
+  is_paid: "Paid Status",
+  paid_date: "Paid Date",
+  notes: "Notes",
+};
 
 export default function ExpensesPage() {
   const { user } = useCurrentUser();
@@ -287,7 +308,15 @@ export default function ExpensesPage() {
         />
       )}
 
-      {auditExpense && <GarageExpenseAuditTrailModal expense={auditExpense} onClose={() => setAuditExpense(null)} />}
+      {auditExpense && (
+        <AuditLogTimeline
+          title="Audit Trail"
+          fieldLabels={GARAGE_EXPENSE_FIELD_LABELS}
+          fetchLogs={() => listGarageExpenseAuditLogs(auditExpense.id)}
+          emptyMessage="No corrections yet — this entry is exactly as originally logged."
+          onClose={() => setAuditExpense(null)}
+        />
+      )}
     </div>
   );
 }

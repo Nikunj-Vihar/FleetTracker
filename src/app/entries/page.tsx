@@ -4,14 +4,27 @@ import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, GitBranch, History, Loader2, Pencil, Search, ShieldAlert, TrendingUp, X } from "lucide-react";
 import CsvExportButton from "@/components/CsvExportButton";
-import AuditTrailModal from "@/components/AuditTrailModal";
+import AuditLogTimeline from "@/components/AuditLogTimeline";
 import EditEntryModal from "@/components/EditEntryModal";
-import { getSettings, listDrivers, listEntries, listVehicles, seedLocalSampleData } from "@/lib/store";
+import { getSettings, listAuditLogs, listDrivers, listEntries, listVehicles, seedLocalSampleData } from "@/lib/store";
 import { DEFAULT_MAINTENANCE_INTERVALS } from "@/lib/maintenance";
 import { annotateContinuitySeverity, DEFAULT_GAP_TOLERANCE_KM } from "@/lib/validation";
 import { alertKindStyle, computeFlaggedAlerts, type FlaggedAlertCard } from "@/lib/flaggedAlerts";
 import { formatDate } from "@/lib/utils";
 import type { Driver, FuelEntry, Settings, Vehicle } from "@/lib/types";
+
+const ENTRY_FIELD_LABELS: Record<string, string> = {
+  date: "Date",
+  place: "Place",
+  vehicle_id: "Vehicle",
+  driver_id: "Driver",
+  onward_reading: "Onward Reading",
+  return_reading: "Return Reading",
+  diesel_consumed: "Diesel Consumed",
+  notes: "Notes",
+  total_kms: "Total KMS (recomputed)",
+  average_kml: "Average km/l (recomputed)",
+};
 
 export default function EntriesPage() {
   return (
@@ -41,7 +54,9 @@ function EntriesPageContent() {
   const [search, setSearch] = useState("");
   const [vehicleFilter, setVehicleFilter] = useState("all");
   const [driverFilter, setDriverFilter] = useState("all");
-  const [flaggedOnly, setFlaggedOnly] = useState(false);
+  // Initializes from ?flagged=true (the Dashboard hero card's deep link),
+  // same pattern as highlightId reading ?entry= above.
+  const [flaggedOnly, setFlaggedOnly] = useState(searchParams.get("flagged") === "true");
 
   const [auditEntry, setAuditEntry] = useState<FuelEntry | null>(null);
   const [editEntry, setEditEntry] = useState<FuelEntry | null>(null);
@@ -280,7 +295,15 @@ function EntriesPageContent() {
         </>
       )}
 
-      {auditEntry && <AuditTrailModal entry={auditEntry} onClose={() => setAuditEntry(null)} />}
+      {auditEntry && (
+        <AuditLogTimeline
+          title="Audit Trail"
+          fieldLabels={ENTRY_FIELD_LABELS}
+          fetchLogs={() => listAuditLogs(auditEntry.id)}
+          emptyMessage="No corrections yet — this entry is exactly as originally logged."
+          onClose={() => setAuditEntry(null)}
+        />
+      )}
       {editEntry && (
         <EditEntryModal
           entry={editEntry}

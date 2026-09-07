@@ -19,12 +19,18 @@ import type { TrendPoint } from "@/lib/validation";
 // status critical red, better-flag = categorical slot 7 (violet) so it never
 // collides with the blue trend line itself. Both flag types also carry an
 // icon + label in the legend/tooltip, never color alone.
-const COLOR_LINE = "#2a78d6";
-const COLOR_BAND = "rgba(42, 120, 214, 0.10)";
-const COLOR_WORSE = "#d03b3b";
-const COLOR_BETTER = "#4a3aa7";
-const COLOR_AXIS = "#898781";
-const COLOR_GRID = "#e1e0d9";
+//
+// Values live as CSS custom properties in globals.css (--chart-*), not as
+// flat hex here, so this chart repaints on light/dark toggle — var()
+// resolves inside SVG presentation attributes exactly like inline style,
+// so no React re-render/theme hook is needed. The literal fallback after
+// each comma is only a safety net if the variable somehow fails to resolve.
+const COLOR_LINE = "var(--chart-line, #1a67f2)";
+const COLOR_BAND = "var(--chart-band, rgba(26, 103, 242, 0.10))";
+const COLOR_WORSE = "var(--chart-worse, #dc2626)";
+const COLOR_BETTER = "var(--chart-better, #7c3aed)";
+const COLOR_AXIS = "var(--chart-axis, #64748b)";
+const COLOR_GRID = "var(--chart-grid, #e2e8f0)";
 
 interface ChartDatum {
   date: string;

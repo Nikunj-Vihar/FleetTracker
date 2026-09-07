@@ -4,12 +4,18 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, History, Loader2, Pencil, Phone, Plus, Trash2, User } from "lucide-react";
 import InlineAddModal from "@/components/InlineAddModal";
 import EditDriverModal from "@/components/EditDriverModal";
-import DriverAuditTrailModal from "@/components/DriverAuditTrailModal";
+import AuditLogTimeline from "@/components/AuditLogTimeline";
 import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 import { useCurrentUser } from "@/lib/auth";
-import { deleteDriver, listDrivers, listEntries, listVehicles, seedLocalSampleData } from "@/lib/store";
+import { deleteDriver, listDriverAuditLogs, listDrivers, listEntries, listVehicles, seedLocalSampleData } from "@/lib/store";
 import { computeFleetAverage } from "@/lib/validation";
 import type { Driver, FuelEntry, Vehicle } from "@/lib/types";
+
+const DRIVER_FIELD_LABELS: Record<string, string> = {
+  name: "Name",
+  phone: "Phone",
+  deleted_at: "Deleted",
+};
 
 export default function DriversPage() {
   const { user } = useCurrentUser();
@@ -200,7 +206,15 @@ export default function DriversPage() {
         />
       )}
 
-      {auditDriver && <DriverAuditTrailModal driver={auditDriver} onClose={() => setAuditDriver(null)} />}
+      {auditDriver && (
+        <AuditLogTimeline
+          title={`Audit Trail — ${auditDriver.name}`}
+          fieldLabels={DRIVER_FIELD_LABELS}
+          fetchLogs={() => listDriverAuditLogs(auditDriver.id)}
+          emptyMessage="No corrections yet — this driver is exactly as originally added."
+          onClose={() => setAuditDriver(null)}
+        />
+      )}
 
       {deletingDriver && (
         <ConfirmDeleteModal
