@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, GitBranch, History, Loader2, Pencil, Search, ShieldAlert, TrendingUp, X } from "lucide-react";
 import CsvExportButton from "@/components/CsvExportButton";
@@ -120,6 +121,8 @@ function EntriesPageContent() {
     });
   }, [entries, search, vehicleFilter, driverFilter, flaggedOnly, vehicleMap, driverMap]);
 
+  const hasActiveFilters = search.trim() !== "" || vehicleFilter !== "all" || driverFilter !== "all" || flaggedOnly;
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center text-slate-400">
@@ -133,70 +136,88 @@ function EntriesPageContent() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Log History</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">{filtered.length} of {entries.length} entries</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Every trip logged, with computed KMs and average — flags surface anomalies to review.
+          </p>
         </div>
         <CsvExportButton entries={filtered} vehicles={vehicles} drivers={drivers} />
       </div>
 
-      <div className="glass-panel flex flex-wrap items-center gap-3 p-3">
-        <div className="flex min-w-[200px] flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
-          <Search size={15} className="text-slate-400" />
-          <input
-            className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
-            placeholder="Search vehicle, driver, place, date..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <select className="input-field w-auto" value={vehicleFilter} onChange={(e) => setVehicleFilter(e.target.value)}>
-          <option value="all">All vehicles</option>
-          {vehicles.map((v) => (
-            <option key={v.id} value={v.id}>{v.vehicle_no}</option>
-          ))}
-        </select>
-        <select className="input-field w-auto" value={driverFilter} onChange={(e) => setDriverFilter(e.target.value)}>
-          <option value="all">All drivers</option>
-          {drivers.map((d) => (
-            <option key={d.id} value={d.id}>{d.name}</option>
-          ))}
-        </select>
-        <label className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
-          <input type="checkbox" checked={flaggedOnly} onChange={(e) => setFlaggedOnly(e.target.checked)} />
-          Flagged only
-        </label>
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="glass-panel px-3 py-10 text-center text-sm text-slate-400">
-          <AlertTriangle size={20} className="mx-auto mb-2 opacity-40" />
-          No entries match your filters.
-        </div>
-      ) : (
-        <>
-          {/* Card list — below md (also covers the 640-767px tablet range,
-              where this 900px-wide table would overflow the viewport
-              rather than just scroll within its own container). */}
-          <div className="space-y-2 md:hidden">
-            {filtered.map((entry) => (
-              <EntryCard
-                key={entry.id}
-                entry={entry}
-                vehicleNo={vehicleMap.get(entry.vehicle_id)?.vehicle_no ?? "—"}
-                driverName={driverMap.get(entry.driver_id)?.name ?? "—"}
-                continuitySeverity={continuitySeverity.get(entry.id) ?? null}
-                onEdit={() => setEditEntry(entry)}
-                onAudit={() => setAuditEntry(entry)}
-                highlighted={entry.id === highlightId}
-                onHighlightMount={entry.id === highlightId ? (el) => { highlightRef.current = el; } : undefined}
-                onDismissHighlight={() => router.replace("/entries")}
-                flagCards={flaggedByEntry.get(entry.id)}
+      <div className="glass-panel p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                className="input-field w-56 pl-8"
+                placeholder="Search vehicle, driver, place, date..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
               />
-            ))}
+            </div>
+            <select className="input-field w-40" value={vehicleFilter} onChange={(e) => setVehicleFilter(e.target.value)}>
+              <option value="all">All vehicles</option>
+              {vehicles.map((v) => (
+                <option key={v.id} value={v.id}>{v.vehicle_no}</option>
+              ))}
+            </select>
+            <select className="input-field w-40" value={driverFilter} onChange={(e) => setDriverFilter(e.target.value)}>
+              <option value="all">All drivers</option>
+              {drivers.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+            <label className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
+              <input type="checkbox" checked={flaggedOnly} onChange={(e) => setFlaggedOnly(e.target.checked)} />
+              Flagged only
+            </label>
           </div>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            {filtered.length} of {entries.length} entries
+          </p>
+        </div>
 
-          {/* Full table — md and up, matching Navbar's own mobile/desktop breakpoint */}
-          <div className="glass-panel hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[900px] text-sm">
+        {filtered.length === 0 ? (
+          <div className="px-3 py-10 text-center text-sm text-slate-400">
+            <AlertTriangle size={20} className="mx-auto mb-2 opacity-40" />
+            {hasActiveFilters ? (
+              "No entries match your filters."
+            ) : (
+              <>
+                No entries logged yet.{" "}
+                <Link href="/log" className="font-medium text-brand-600 hover:underline dark:text-brand-400">
+                  Log the first trip
+                </Link>
+                .
+              </>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Card list — below md (also covers the 640-767px tablet range,
+                where this 900px-wide table would overflow the viewport
+                rather than just scroll within its own container). */}
+            <div className="space-y-2 md:hidden">
+              {filtered.map((entry) => (
+                <EntryCard
+                  key={entry.id}
+                  entry={entry}
+                  vehicleNo={vehicleMap.get(entry.vehicle_id)?.vehicle_no ?? "—"}
+                  driverName={driverMap.get(entry.driver_id)?.name ?? "—"}
+                  continuitySeverity={continuitySeverity.get(entry.id) ?? null}
+                  onEdit={() => setEditEntry(entry)}
+                  onAudit={() => setAuditEntry(entry)}
+                  highlighted={entry.id === highlightId}
+                  onHighlightMount={entry.id === highlightId ? (el) => { highlightRef.current = el; } : undefined}
+                  onDismissHighlight={() => router.replace("/entries")}
+                  flagCards={flaggedByEntry.get(entry.id)}
+                />
+              ))}
+            </div>
+
+            {/* Full table — md and up, matching Navbar's own mobile/desktop breakpoint */}
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[900px] text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
                   <th className="px-3 py-2.5">Date</th>
@@ -259,7 +280,7 @@ function EntriesPageContent() {
                       </div>
                     </td>
                     <td className="px-3 py-2.5">
-                      <div className="flex items-center gap-1">
+                      <div className="flex justify-end gap-1">
                         <button
                           type="button"
                           onClick={() => setEditEntry(entry)}
@@ -291,9 +312,10 @@ function EntriesPageContent() {
                 })}
               </tbody>
             </table>
-          </div>
-        </>
-      )}
+            </div>
+          </>
+        )}
+      </div>
 
       {auditEntry && (
         <AuditLogTimeline

@@ -111,7 +111,10 @@ export default function VehiclesPage() {
       </div>
 
       {vehicleStats.length === 0 ? (
-        <div className="glass-panel px-3 py-10 text-center text-sm text-slate-400">No vehicles yet.</div>
+        <div className="glass-panel px-3 py-10 text-center text-sm text-slate-400">
+          <Truck size={20} className="mx-auto mb-2 opacity-40" />
+          No vehicles yet.
+        </div>
       ) : (
         <>
           {/* Card list — below md (also covers the 640-767px tablet range) */}
@@ -143,7 +146,10 @@ export default function VehiclesPage() {
               </thead>
               <tbody>
                 {vehicleStats.map(({ vehicle, avg, baseline, deviationFromBaseline, flaggedCount, entryCount, serviceStatus }) => (
-                  <tr key={vehicle.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
+                  <tr
+                    key={vehicle.id}
+                    className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60 dark:border-slate-800 dark:hover:bg-slate-800/40"
+                  >
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2">
                         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">

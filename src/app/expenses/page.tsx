@@ -104,6 +104,9 @@ export default function ExpensesPage() {
     [searchFiltered, paidFilter]
   );
 
+  const hasActiveFilters =
+    search.trim() !== "" || vehicleFilter !== "all" || categoryFilter !== "all" || paidFilter !== "all";
+
   const totalAmount = useMemo(() => filtered.reduce((sum, e) => sum + e.amount, 0), [filtered]);
   // Outstanding stays scoped to vehicle/search only (not the paid/unpaid
   // toggle itself) so it reads as a stable "what we still owe" figure no
@@ -189,7 +192,10 @@ export default function ExpensesPage() {
         </div>
 
         {filtered.length === 0 ? (
-          <div className="px-3 py-10 text-center text-sm text-slate-400">No expenses logged yet.</div>
+          <div className="px-3 py-10 text-center text-sm text-slate-400">
+            <Wrench size={20} className="mx-auto mb-2 opacity-40" />
+            {hasActiveFilters ? "No expenses match your filters." : "No expenses logged yet — add one above to get started."}
+          </div>
         ) : (
           <>
             {/* Card list — below md (also covers the 640-767px tablet range, where a full data table wouldn't fit) */}
@@ -227,7 +233,10 @@ export default function ExpensesPage() {
                 </thead>
                 <tbody>
                   {filtered.map((expense) => (
-                    <tr key={expense.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
+                    <tr
+                      key={expense.id}
+                      className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60 dark:border-slate-800 dark:hover:bg-slate-800/40"
+                    >
                       <td className="px-3 py-2.5 whitespace-nowrap text-slate-500 dark:text-slate-400">{formatDate(expense.date)}</td>
                       <td className="px-3 py-2.5 font-medium text-slate-800 dark:text-slate-100">
                         {vehicleMap.get(expense.vehicle_id)?.vehicle_no ?? "—"}
