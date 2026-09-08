@@ -2,17 +2,26 @@
 
 import { usePathname } from "next/navigation";
 import Navbar from "./Navbar";
+import InstallPwaPrompt from "./InstallPwaPrompt";
 
 export default function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const hideChrome = pathname === "/login" || pathname === "/signup";
 
-  if (hideChrome) return <>{children}</>;
+  if (hideChrome) {
+    return (
+      <>
+        {children}
+        <InstallPwaPrompt />
+      </>
+    );
+  }
 
   return (
     <>
       <Navbar />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+      <InstallPwaPrompt />
     </>
   );
 }

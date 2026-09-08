@@ -6,6 +6,17 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Fleet Fuel Log & Anomaly Tracker",
   description: "Digitized daily vehicle trip & fuel logging with built-in fraud/anomaly detection.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Fleet Fuel Log",
+  },
+  other: {
+    // Next's appleWebApp.capable only emits the newer, unprefixed
+    // "mobile-web-app-capable" tag — add the legacy Apple-prefixed one too
+    // so pre-16.4 iOS Safari still hides its browser chrome in standalone.
+    "apple-mobile-web-app-capable": "yes",
+  },
 };
 
 export const viewport: Viewport = {
